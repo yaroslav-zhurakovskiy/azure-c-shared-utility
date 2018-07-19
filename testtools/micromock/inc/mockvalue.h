@@ -11,6 +11,20 @@
 
 #include <sstream>
 
+#ifdef _UNICODE
+inline std::string WStringToTString(std::wstring wstr) {
+    wstr.resize(wcslen(wstr.c_str())); // remove embedded nulls
+    return wstr;
+}
+#else /* ^^^ _UNICODE ^^^ // vvv !_UNICODE vvv */
+inline std::string WStringToTString(const std::wstring& wstr) {
+    size_t sz = wcslen(wstr.c_str()); // remove embedded nulls
+    std::string result(sz, '\0');
+    std::transform(wstr.begin(), wstr.begin() + sz, result.begin(),
+        [](const wchar_t wch) { return static_cast<char>(wch); });
+    return result;
+}
+#endif /* _UNICODE */
 
 template<typename T>
 class CMockValue :
@@ -160,13 +174,7 @@ public:
 
     virtual std::tstring ToString() const
     {
-            std::string temp(m_Value.begin(), m_Value.end());
-
-            std::tostringstream strStream;
-            strStream << temp.c_str();
-            return strStream.str();
-
-
+        return WStringToTString(m_Value);
     }
 
     virtual bool EqualTo(_In_ const CMockValueBase* right)
@@ -223,11 +231,7 @@ public:
 
     virtual std::tstring ToString() const
     {
-            std::string temp(m_Value.begin(), m_Value.end());
-
-            std::tostringstream strStream;
-            strStream << temp.c_str();
-            return strStream.str();
+        return WStringToTString(m_Value);
     }
 
     virtual bool EqualTo(_In_ const CMockValueBase* right)
