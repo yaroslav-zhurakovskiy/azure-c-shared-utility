@@ -12,7 +12,7 @@
 #include <sstream>
 
 #ifdef _UNICODE
-inline std::string WStringToTString(std::wstring wstr) {
+inline std::wstring WStringToTString(std::wstring wstr) {
     wstr.resize(wcslen(wstr.c_str())); // remove embedded nulls
     return wstr;
 }
