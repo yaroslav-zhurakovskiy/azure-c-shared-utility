@@ -131,7 +131,7 @@ HTTP_HANDLE HTTPAPI_CreateConnection(const char* hostName)
                         httpHandleData->lowSpeedLimit = 0;
                         httpHandleData->forbidReuse = 0;
                         httpHandleData->freshConnect = 0;
-                        httpHandleData->verbose = 0;
+                        httpHandleData->verbose = 1;
                         httpHandleData->x509certificate = NULL;
                         httpHandleData->x509privatekey = NULL;
                         httpHandleData->certificates = NULL;
