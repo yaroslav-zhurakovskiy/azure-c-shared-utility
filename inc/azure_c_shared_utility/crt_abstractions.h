@@ -100,8 +100,10 @@ extern int sprintf_s(char* dst, size_t dstSizeInBytes, const char* format, ...);
 #endif // _MSC_VER || MINGW_HAS_SECURE_API
 
 extern unsigned long long strtoull_s(const char* nptr, char** endPtr, int base);
+#if 0
 extern float strtof_s(const char* nptr, char** endPtr);
 extern long double strtold_s(const char* nptr, char** endPtr);
+#endif
 
 #ifdef _MSC_VER
 #define stricmp _stricmp

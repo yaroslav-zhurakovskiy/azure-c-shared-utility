@@ -808,6 +808,7 @@ TEST_FUNCTION(sprintf_s_fails_with_dst_buffer_size_not_fitting_null_char)
     ASSERT_ARE_EQUAL(int, -1, result);
 }
 
+#if 0
 /* strtoull_s */
 
 /*Tests_SRS_CRT_ABSTRACTIONS_21_014: [If the correct value is outside the range, the strtoull_s returns the value ULLONG_MAX, and errno will receive the value ERANGE.]*/
@@ -2342,6 +2343,7 @@ TEST_FUNCTION(strtold_s_invalid_conversion_with_return_string_null_pointer_succe
     ASSERT_ARE_EQUAL(char_ptr, "blahblah", subjectStr);
     ASSERT_IS_TRUE(expectedResult == result);
 }
+#endif
 
 /* mallocAndStrcpy_s */
 

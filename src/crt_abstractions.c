@@ -404,6 +404,7 @@ unsigned long long strtoull_s(const char* nptr, char** endptr, int base)
     return result;
 }
 
+#if 0
 /*Codes_SRS_CRT_ABSTRACTIONS_21_023: [If the string is 'INF' of 'INFINITY' (ignoring case), the strtof_s must return the INFINITY value for float.]*/
 /*Codes_SRS_CRT_ABSTRACTIONS_21_024: [If the string is 'NAN' or 'NAN(...)' (ignoring case), the strtof_s must return 0.0f and points endptr to the first character after the 'NAN' sequence.]*/
 /*Codes_SRS_CRT_ABSTRACTIONS_21_033: [If the string is 'INF' of 'INFINITY' (ignoring case), the strtold_s must return the INFINITY value for long double.]*/
@@ -691,7 +692,7 @@ long double strtold_s(const char* nptr, char** endptr)
 
     return result;
 }
-
+#endif
 
 /*Codes_SRS_CRT_ABSTRACTIONS_99_038: [mallocAndstrcpy_s shall allocate memory for destination buffer to fit the string in the source parameter.]*/
 int mallocAndStrcpy_s(char** destination, const char* source)

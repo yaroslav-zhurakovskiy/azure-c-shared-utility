@@ -43,6 +43,31 @@ static void my_gballoc_free(void* ptr)
 
 #undef ENABLE_MOCKS
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
+    int STRING_sprintf(STRING_HANDLE handle, const char* format, ...);
+    STRING_HANDLE STRING_construct_sprintf(const char* format, ...);
+
+    int STRING_sprintf(STRING_HANDLE handle, const char* format, ...)
+    {
+        (void)handle;
+        (void)format;
+        return 0;
+    }
+
+    STRING_HANDLE STRING_construct_sprintf(const char* format, ...)
+    {
+        (void)format;
+        return (STRING_HANDLE)my_gballoc_malloc(1);
+    }
+
+#ifdef __cplusplus
+}
+#endif
+
 IMPLEMENT_UMOCK_C_ENUM_TYPE(HMACSHA256_RESULT, HMACSHA256_RESULT_VALUES);
 
 double my_get_difftime(time_t stopTime, time_t startTime)
@@ -196,13 +221,44 @@ TEST_FUNCTION_CLEANUP(TestMethodCleanup)
     TEST_MUTEX_RELEASE(g_testByTest);
 }
 
+static void setup_SASToken_mocks(void)
+{
+    STRICT_EXPECTED_CALL(Base64_Decoder(&TEST_CHAR_ARRAY[0])).SetReturn(TEST_DECODEDKEY_HANDLE);
+    STRICT_EXPECTED_CALL(size_tToString(IGNORED_PTR_ARG, sizeof(TEST_TOKEN_EXPIRATION_TIME), TEST_EXPIRY)).CopyOutArgumentBuffer(1, TEST_TOKEN_EXPIRATION_TIME, sizeof(TEST_TOKEN_EXPIRATION_TIME));
+
+    STRICT_EXPECTED_CALL(BUFFER_new()).SetReturn(TEST_HASH_HANDLE);
+    STRICT_EXPECTED_CALL(STRING_new()).SetReturn(TEST_TOBEHASHED_HANDLE);
+    STRICT_EXPECTED_CALL(STRING_new()).SetReturn(TEST_RESULT_HANDLE);
+
+    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, "\n"));
+    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, TEST_TOKEN_EXPIRATION_TIME));
+
+    STRICT_EXPECTED_CALL(STRING_length(TEST_TOBEHASHED_HANDLE)).SetReturn(TEST_LENGTH_TOBEHASHED);
+    STRICT_EXPECTED_CALL(STRING_c_str(TEST_TOBEHASHED_HANDLE));
+    STRICT_EXPECTED_CALL(BUFFER_length(TEST_DECODEDKEY_HANDLE)).SetReturn(TEST_LENGTH_DECODEDKEY);
+    STRICT_EXPECTED_CALL(BUFFER_u_char(TEST_DECODEDKEY_HANDLE));
+
+    STRICT_EXPECTED_CALL(HMACSHA256_ComputeHash(IGNORED_PTR_ARG, TEST_LENGTH_DECODEDKEY, IGNORED_PTR_ARG, TEST_LENGTH_TOBEHASHED, TEST_HASH_HANDLE)).IgnoreArgument(1).IgnoreArgument(3);
+    STRICT_EXPECTED_CALL(Base64_Encoder(TEST_HASH_HANDLE)).SetReturn(TEST_BASE64SIGNATURE_HANDLE);
+    STRICT_EXPECTED_CALL(URL_Encode(TEST_BASE64SIGNATURE_HANDLE)).SetReturn(TEST_URLENCODEDSIGNATURE_HANDLE);
+    STRICT_EXPECTED_CALL(STRING_c_str(TEST_URLENCODEDSIGNATURE_HANDLE));
+
+    STRICT_EXPECTED_CALL(STRING_delete(TEST_BASE64SIGNATURE_HANDLE));
+    STRICT_EXPECTED_CALL(STRING_delete(TEST_URLENCODEDSIGNATURE_HANDLE));
+    STRICT_EXPECTED_CALL(STRING_delete(TEST_TOBEHASHED_HANDLE));
+    STRICT_EXPECTED_CALL(BUFFER_delete(TEST_HASH_HANDLE));
+    STRICT_EXPECTED_CALL(BUFFER_delete(TEST_DECODEDKEY_HANDLE));
+}
+
 /*Tests_SRS_SASTOKEN_25_025: [**SASToken_Validate shall get the SASToken value by invoking STRING_c_str on the handle.**]***/
 TEST_FUNCTION(SASToken_validate_null_handle_fails)
 {
     // arrange
     STRING_HANDLE handle = NULL;
     bool result;
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_NULL_STRING_HANDLE)).SetReturn(NULL);
+
+    STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_NULL_STRING_VALUE);
 
     // act
     result = SASToken_Validate(handle);
@@ -233,13 +289,11 @@ TEST_FUNCTION(SASToken_validate_se_improper_format_1_fails)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature sr=TESTSR&sig=TESTSIG&se0123456789";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
 
     // act
     result = SASToken_Validate(handle);
@@ -253,13 +307,11 @@ TEST_FUNCTION(SASToken_validate_se_improper_format_2_fails)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature sr=TESTSR&sig=TESTSIG&se";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
 
     // act
     result = SASToken_Validate(handle);
@@ -273,13 +325,11 @@ TEST_FUNCTION(SASToken_validate_se_improper_format_3_fails)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature sr=TESTSR&sig=TESTSIG&se=";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
 
     // act
     result = SASToken_Validate(handle);
@@ -293,13 +343,11 @@ TEST_FUNCTION(SASToken_validate_se_improper_format_4_fails)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature sr=TESTSR&sig=TESTSIGse=0123456789";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
 
     // act
     result = SASToken_Validate(handle);
@@ -313,13 +361,11 @@ TEST_FUNCTION(SASToken_validate_se_improper_format_5_fails)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature sr=TESTSR&se0123456789&sig=TESTSIG";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
 
     // act
     result = SASToken_Validate(handle);
@@ -334,13 +380,11 @@ TEST_FUNCTION(SASToken_validate_improper_format_no_se_fails)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature sr=TESTSR&sig=TESTSIG";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
 
     // act
     result = SASToken_Validate(handle);
@@ -354,13 +398,11 @@ TEST_FUNCTION(SASToken_validate_improper_format_no_sr_fails)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature se=0123456789&sig=TESTSIG";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
 
     // act
     result = SASToken_Validate(handle);
@@ -374,13 +416,11 @@ TEST_FUNCTION(SASToken_validate_improper_format_no_sig_fails)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature se=0123456789&sr=TESTSR";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
 
     // act
     result = SASToken_Validate(handle);
@@ -394,13 +434,11 @@ TEST_FUNCTION(SASToken_validate_sr_improper_format_1_fails)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature srTESTSR&sig=TESTSIG&se=0123456789";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
 
     // act
     result = SASToken_Validate(handle);
@@ -414,13 +452,11 @@ TEST_FUNCTION(SASToken_validate_sr_improper_format_2_fails)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature sr&sig=TESTSIG&se=0123456789";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
 
     // act
     result = SASToken_Validate(handle);
@@ -434,13 +470,11 @@ TEST_FUNCTION(SASToken_validate_sr_improper_format_3_fails)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature sr=&sig=TESTSIG&se=0123456789";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
 
     // act
     result = SASToken_Validate(handle);
@@ -454,13 +488,11 @@ TEST_FUNCTION(SASToken_validate_sr_improper_format_4_fails)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignaturesr=TESTSR&sig=TESTSIGse=0123456789";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
 
     // act
     result = SASToken_Validate(handle);
@@ -474,13 +506,11 @@ TEST_FUNCTION(SASToken_validate_sr_improper_format_5_fails)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature srTESTSR&se=0123456789&sig=TESTSIG";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
 
     // act
     result = SASToken_Validate(handle);
@@ -494,13 +524,11 @@ TEST_FUNCTION(SASToken_validate_sig_improper_format_1_fails)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature sr=TESTSR&sigTESTSIG&se=0123456789";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
 
     // act
     result = SASToken_Validate(handle);
@@ -514,13 +542,11 @@ TEST_FUNCTION(SASToken_validate_sig_improper_format_2_fails)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature sr=TESTSR&sig&se=0123456789";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
 
     // act
     result = SASToken_Validate(handle);
@@ -534,13 +560,11 @@ TEST_FUNCTION(SASToken_validate_sig_improper_format_3_fails)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature sr=TESTSR&sig=&se=0123456789";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
 
     // act
     result = SASToken_Validate(handle);
@@ -554,13 +578,11 @@ TEST_FUNCTION(SASToken_validate_sig_improper_format_4_fails)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature sr=TESTSRsig=TESTSIGse=0123456789";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
 
     // act
     result = SASToken_Validate(handle);
@@ -574,13 +596,11 @@ TEST_FUNCTION(SASToken_validate_sig_improper_format_5_fails)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature sr=TESTSR&se0123456789&sig=TESTSIG";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
 
     // act
     result = SASToken_Validate(handle);
@@ -595,13 +615,11 @@ TEST_FUNCTION(SASToken_validate_proper_format_1_pass)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature se=0123456789&sr=TESTSR&sig=TESTSIG";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
     EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     STRICT_EXPECTED_CALL(get_time(IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(get_difftime(IGNORED_NUM_ARG, IGNORED_NUM_ARG)).IgnoreAllArguments().SetReturn(TEST_TIME_T);
@@ -620,13 +638,11 @@ TEST_FUNCTION(SASToken_validate_proper_format_with_skn_1_pass)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature sr=devices.net/devices/tmp_device&sig=TESTSIG&se=0123456789&skn=";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
     EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     STRICT_EXPECTED_CALL(get_time(IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(get_difftime(IGNORED_NUM_ARG, IGNORED_NUM_ARG)).IgnoreAllArguments().SetReturn(TEST_TIME_T);
@@ -644,13 +660,11 @@ TEST_FUNCTION(SASToken_validate_proper_format_with_skn_expired_se_fail)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature sr=devices.net/devices/tmp_device&sig=TESTSIG&se=011&skn=";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
     EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     STRICT_EXPECTED_CALL(get_time(IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(get_difftime(IGNORED_NUM_ARG, IGNORED_NUM_ARG)).IgnoreAllArguments().SetReturn(TEST_TIME_T);
@@ -668,13 +682,11 @@ TEST_FUNCTION(SASToken_validate_proper_format_2_pass)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature sr=TESTSR&se=0123456789&sig=TESTSIG";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
     EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     STRICT_EXPECTED_CALL(get_time(IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(get_difftime(IGNORED_NUM_ARG, IGNORED_NUM_ARG)).IgnoreAllArguments().SetReturn(TEST_TIME_T);
@@ -692,13 +704,11 @@ TEST_FUNCTION(SASToken_validate_proper_format_3_pass)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature sig=TESTSIG&sr=TESTSR&se=0123456789";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
     EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     STRICT_EXPECTED_CALL(get_time(IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(get_difftime(IGNORED_NUM_ARG, IGNORED_NUM_ARG)).IgnoreAllArguments().SetReturn(TEST_TIME_T);
@@ -716,13 +726,11 @@ TEST_FUNCTION(SASToken_validate_not_expired_pass)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature sig=TESTSIG&sr=TESTSR&se=11";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
     EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     STRICT_EXPECTED_CALL(get_time(IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(get_difftime(IGNORED_NUM_ARG, IGNORED_NUM_ARG)).IgnoreAllArguments().SetReturn(TEST_EARLY_TIME);
@@ -741,13 +749,11 @@ TEST_FUNCTION(SASToken_validate_expired_fail)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature sig=TESTSIG&sr=TESTSR&se=10";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
     EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     STRICT_EXPECTED_CALL(get_time(IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(get_difftime(TEST_TIME_T, IGNORED_NUM_ARG)).IgnoreAllArguments().SetReturn(TEST_LATER_TIME);
@@ -765,13 +771,11 @@ TEST_FUNCTION(SASToken_validate_invalid_expiry_1_fail)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature sig=TESTSIG&sr=TESTSR&se=10A";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
     EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG)).IgnoreAllArguments();
 
@@ -787,13 +791,11 @@ TEST_FUNCTION(SASToken_validate_invalid_expiry_2_fail)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature sig=TESTSIG&sr=TESTSR&se=-10";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
     EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG)).IgnoreAllArguments();
 
@@ -809,13 +811,11 @@ TEST_FUNCTION(SASToken_validate_invalid_expiry_3_fail)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature sig=TESTSIG&sr=TESTSR&se=0";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
     EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG)).IgnoreAllArguments();
 
@@ -831,13 +831,11 @@ TEST_FUNCTION(SASToken_validate_invalid_expiry_4_fail)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature sig=TESTSIG&sr=TESTSR&se=A0";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
     EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG)).IgnoreAllArguments();
 
@@ -853,13 +851,11 @@ TEST_FUNCTION(SASToken_validate_invalid_expiry_5_fail)
 {
     // arrange
     const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature sig=TESTSIG&sr=TESTSR&se=1A0";
-    size_t TEST_INVALID_SE_LENGTH = strlen(TEST_INVALID_SE);
     STRING_HANDLE handle = TEST_STRING_HANDLE;
     bool result;
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(STRING_c_str(handle)).SetReturn(TEST_INVALID_SE);
-    STRICT_EXPECTED_CALL(STRING_length(handle)).SetReturn(TEST_INVALID_SE_LENGTH);
     EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG)).IgnoreAllArguments();
 
@@ -870,6 +866,39 @@ TEST_FUNCTION(SASToken_validate_invalid_expiry_5_fail)
     ASSERT_IS_FALSE(result);
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 }
+
+
+TEST_FUNCTION(SASToken_ValidateString_succeed)
+{
+    // arrange
+    const char* TEST_INVALID_SE = "SharedAccessSignature=SharedAccessSignature sig=TESTSIG&sr=TESTSR&se=0123456789";
+    bool result;
+
+    EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(get_time(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(get_difftime(TEST_TIME_T, IGNORED_NUM_ARG)).IgnoreAllArguments().SetReturn(TEST_LATER_TIME);
+    EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+
+    // act
+    result = SASToken_ValidateString(TEST_INVALID_SE);
+
+    // assert
+    ASSERT_IS_TRUE(result);
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+}
+
+TEST_FUNCTION(SASToken_ValidateString_sasToken_NULL_fail)
+{
+    // arrange
+
+    // act
+    bool result = SASToken_ValidateString(NULL);
+
+    // assert
+    ASSERT_IS_FALSE(result);
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+}
+
 
 /*Tests_SRS_SASTOKEN_06_001: [If key is NULL then SASToken_Create shall return NULL.]*/
 TEST_FUNCTION(SASToken_Create_null_key_fails)
@@ -909,38 +938,7 @@ TEST_FUNCTION(SASToken_Create_null_keyName_succeeds)
     STRICT_EXPECTED_CALL(STRING_c_str(TEST_SCOPE_HANDLE)).SetReturn(TEST_STRING_VALUE);
     STRICT_EXPECTED_CALL(STRING_c_str(NULL)).SetReturn(NULL);
 
-    STRICT_EXPECTED_CALL(Base64_Decoder(&TEST_CHAR_ARRAY[0])).SetReturn(TEST_DECODEDKEY_HANDLE);
-    STRICT_EXPECTED_CALL(size_tToString(IGNORED_PTR_ARG, sizeof(TEST_TOKEN_EXPIRATION_TIME), TEST_EXPIRY)).IgnoreArgument(1).CopyOutArgumentBuffer(1, TEST_TOKEN_EXPIRATION_TIME, sizeof(TEST_TOKEN_EXPIRATION_TIME));
-
-    STRICT_EXPECTED_CALL(BUFFER_new()).SetReturn(TEST_HASH_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_new()).SetReturn(TEST_TOBEHASHED_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_new()).SetReturn(TEST_RESULT_HANDLE);
-
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, "\n"));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, TEST_TOKEN_EXPIRATION_TIME));
-
-    STRICT_EXPECTED_CALL(STRING_length(TEST_TOBEHASHED_HANDLE)).SetReturn(TEST_LENGTH_TOBEHASHED);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_TOBEHASHED_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_length(TEST_DECODEDKEY_HANDLE)).SetReturn(TEST_LENGTH_DECODEDKEY);
-    STRICT_EXPECTED_CALL(BUFFER_u_char(TEST_DECODEDKEY_HANDLE));
-
-    STRICT_EXPECTED_CALL(HMACSHA256_ComputeHash(IGNORED_PTR_ARG, TEST_LENGTH_DECODEDKEY, IGNORED_PTR_ARG, TEST_LENGTH_TOBEHASHED, TEST_HASH_HANDLE)).IgnoreArgument(1).IgnoreArgument(3);
-    STRICT_EXPECTED_CALL(Base64_Encoder(TEST_HASH_HANDLE)).SetReturn(TEST_BASE64SIGNATURE_HANDLE);
-    STRICT_EXPECTED_CALL(URL_Encode(TEST_BASE64SIGNATURE_HANDLE)).SetReturn(TEST_URLENCODEDSIGNATURE_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_copy(TEST_RESULT_HANDLE, "SharedAccessSignature sr="));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, "&sig="));
-    STRICT_EXPECTED_CALL(STRING_concat_with_STRING(TEST_RESULT_HANDLE, TEST_URLENCODEDSIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, "&se="));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, TEST_TOKEN_EXPIRATION_TIME));
-
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_BASE64SIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_URLENCODEDSIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_TOBEHASHED_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_delete(TEST_HASH_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_delete(TEST_DECODEDKEY_HANDLE));
-
+    setup_SASToken_mocks();
 
     // act
     handle = SASToken_Create(TEST_KEY_HANDLE, TEST_SCOPE_HANDLE, TEST_NULL_STRING_HANDLE, TEST_EXPIRY);
@@ -1265,8 +1263,8 @@ TEST_FUNCTION(SASToken_Create_building_token_signature_url_encoding_fails)
     STRICT_EXPECTED_CALL(STRING_c_str(TEST_KEY_HANDLE)).SetReturn(&TEST_CHAR_ARRAY[0]);
     STRICT_EXPECTED_CALL(STRING_c_str(TEST_SCOPE_HANDLE)).SetReturn(TEST_STRING_VALUE);
     STRICT_EXPECTED_CALL(STRING_c_str(TEST_KEYNAME_HANDLE)).SetReturn(TEST_STRING_VALUE);
-    STRICT_EXPECTED_CALL(Base64_Decoder(&TEST_CHAR_ARRAY[0])).SetReturn(TEST_DECODEDKEY_HANDLE);
 
+    STRICT_EXPECTED_CALL(Base64_Decoder(&TEST_CHAR_ARRAY[0])).SetReturn(TEST_DECODEDKEY_HANDLE);
     STRICT_EXPECTED_CALL(size_tToString(IGNORED_PTR_ARG, sizeof(TEST_TOKEN_EXPIRATION_TIME), TEST_EXPIRY)).IgnoreArgument(1).CopyOutArgumentBuffer(1, TEST_TOKEN_EXPIRATION_TIME, sizeof(TEST_TOKEN_EXPIRATION_TIME));
     STRICT_EXPECTED_CALL(BUFFER_new()).SetReturn(TEST_HASH_HANDLE);
     STRICT_EXPECTED_CALL(STRING_new()).SetReturn(TEST_TOBEHASHED_HANDLE);
@@ -1300,402 +1298,6 @@ TEST_FUNCTION(SASToken_Create_building_token_signature_url_encoding_fails)
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 }
 
-/*Tests_SRS_SASTOKEN_06_014: [If there are any errors from the following operations then NULL shall be returned.]*/
-/*Tests_SRS_SASTOKEN_06_028: [base64Signature shall be url encoded.]*/
-TEST_FUNCTION(SASToken_Create_building_token_copy_scope_identifier_fails)
-{
-    // arrange
-    STRING_HANDLE handle;
-
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_KEY_HANDLE)).SetReturn(&TEST_CHAR_ARRAY[0]);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_SCOPE_HANDLE)).SetReturn(TEST_STRING_VALUE);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_KEYNAME_HANDLE)).SetReturn(TEST_STRING_VALUE);
-    STRICT_EXPECTED_CALL(Base64_Decoder(&TEST_CHAR_ARRAY[0])).SetReturn(TEST_DECODEDKEY_HANDLE);
-
-    STRICT_EXPECTED_CALL(size_tToString(IGNORED_PTR_ARG, sizeof(TEST_TOKEN_EXPIRATION_TIME), TEST_EXPIRY)).IgnoreArgument(1).CopyOutArgumentBuffer(1, TEST_TOKEN_EXPIRATION_TIME, sizeof(TEST_TOKEN_EXPIRATION_TIME));
-    STRICT_EXPECTED_CALL(BUFFER_new()).SetReturn(TEST_HASH_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_new()).SetReturn(TEST_TOBEHASHED_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_new()).SetReturn(TEST_RESULT_HANDLE);
-
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, "\n"));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, TEST_TOKEN_EXPIRATION_TIME));
-
-    STRICT_EXPECTED_CALL(STRING_length(TEST_TOBEHASHED_HANDLE)).SetReturn(TEST_LENGTH_TOBEHASHED);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_TOBEHASHED_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_length(TEST_DECODEDKEY_HANDLE)).SetReturn(TEST_LENGTH_DECODEDKEY);
-    STRICT_EXPECTED_CALL(BUFFER_u_char(TEST_DECODEDKEY_HANDLE));
-
-    STRICT_EXPECTED_CALL(HMACSHA256_ComputeHash(IGNORED_PTR_ARG, TEST_LENGTH_DECODEDKEY, IGNORED_PTR_ARG, TEST_LENGTH_TOBEHASHED, TEST_HASH_HANDLE)).IgnoreArgument(1).IgnoreArgument(3);
-    STRICT_EXPECTED_CALL(Base64_Encoder(TEST_HASH_HANDLE)).SetReturn(TEST_BASE64SIGNATURE_HANDLE);
-    STRICT_EXPECTED_CALL(URL_Encode(TEST_BASE64SIGNATURE_HANDLE)).SetReturn(TEST_URLENCODEDSIGNATURE_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_copy(TEST_RESULT_HANDLE, "SharedAccessSignature sr=")).SetReturn(1);
-
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_RESULT_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_BASE64SIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_URLENCODEDSIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_TOBEHASHED_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_delete(TEST_HASH_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_delete(TEST_DECODEDKEY_HANDLE));
-
-    // act
-    handle = SASToken_Create(TEST_KEY_HANDLE, TEST_SCOPE_HANDLE, TEST_KEYNAME_HANDLE, TEST_EXPIRY);
-
-    // assert
-    ASSERT_IS_NULL(handle);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-}
-
-/*Tests_SRS_SASTOKEN_06_016: [The string "SharedAccessSignature sr=" is the first part of the result of SASToken_Create.]*/
-/*Tests_SRS_SASTOKEN_06_014: [If there are any errors from the following operations then NULL shall be returned.]*/
-TEST_FUNCTION(SASToken_Create_building_token_concat_scope_fails)
-{
-    // arrange
-    STRING_HANDLE handle;
-
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_KEY_HANDLE)).SetReturn(&TEST_CHAR_ARRAY[0]);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_SCOPE_HANDLE)).SetReturn(TEST_STRING_VALUE);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_KEYNAME_HANDLE)).SetReturn(TEST_STRING_VALUE);
-    STRICT_EXPECTED_CALL(Base64_Decoder(&TEST_CHAR_ARRAY[0])).SetReturn(TEST_DECODEDKEY_HANDLE);
-
-    STRICT_EXPECTED_CALL(size_tToString(IGNORED_PTR_ARG, sizeof(TEST_TOKEN_EXPIRATION_TIME), TEST_EXPIRY)).IgnoreArgument(1).CopyOutArgumentBuffer(1, TEST_TOKEN_EXPIRATION_TIME, sizeof(TEST_TOKEN_EXPIRATION_TIME));
-    STRICT_EXPECTED_CALL(BUFFER_new()).SetReturn(TEST_HASH_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_new()).SetReturn(TEST_TOBEHASHED_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_new()).SetReturn(TEST_RESULT_HANDLE);
-
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, "\n"));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, TEST_TOKEN_EXPIRATION_TIME));
-
-    STRICT_EXPECTED_CALL(STRING_length(TEST_TOBEHASHED_HANDLE)).SetReturn(TEST_LENGTH_TOBEHASHED);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_TOBEHASHED_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_length(TEST_DECODEDKEY_HANDLE)).SetReturn(TEST_LENGTH_DECODEDKEY);
-    STRICT_EXPECTED_CALL(BUFFER_u_char(TEST_DECODEDKEY_HANDLE));
-
-    STRICT_EXPECTED_CALL(HMACSHA256_ComputeHash(IGNORED_PTR_ARG, TEST_LENGTH_DECODEDKEY, IGNORED_PTR_ARG, TEST_LENGTH_TOBEHASHED, TEST_HASH_HANDLE)).IgnoreArgument(1).IgnoreArgument(3);
-    STRICT_EXPECTED_CALL(Base64_Encoder(TEST_HASH_HANDLE)).SetReturn(TEST_BASE64SIGNATURE_HANDLE);
-    STRICT_EXPECTED_CALL(URL_Encode(TEST_BASE64SIGNATURE_HANDLE)).SetReturn(TEST_URLENCODEDSIGNATURE_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_copy(TEST_RESULT_HANDLE, "SharedAccessSignature sr="));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, IGNORED_PTR_ARG)).SetReturn(1);
-
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_RESULT_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_BASE64SIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_URLENCODEDSIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_TOBEHASHED_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_delete(TEST_HASH_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_delete(TEST_DECODEDKEY_HANDLE));
-
-    // act
-    handle = SASToken_Create(TEST_KEY_HANDLE, TEST_SCOPE_HANDLE, TEST_KEYNAME_HANDLE, TEST_EXPIRY);
-
-    // assert
-    ASSERT_IS_NULL(handle);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-}
-
-/*Tests_SRS_SASTOKEN_06_014: [If there are any errors from the following operations then NULL shall be returned.]*/
-/*Tests_SRS_SASTOKEN_06_017: [The scope parameter is appended to result.]*/
-TEST_FUNCTION(SASToken_Create_building_token_concat_signature_identifier_fails)
-{
-    // arrange
-    STRING_HANDLE handle;
-
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_KEY_HANDLE)).SetReturn(&TEST_CHAR_ARRAY[0]);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_SCOPE_HANDLE)).SetReturn(TEST_STRING_VALUE);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_KEYNAME_HANDLE)).SetReturn(TEST_STRING_VALUE);
-    STRICT_EXPECTED_CALL(Base64_Decoder(&TEST_CHAR_ARRAY[0])).SetReturn(TEST_DECODEDKEY_HANDLE);
-
-    STRICT_EXPECTED_CALL(size_tToString(IGNORED_PTR_ARG, sizeof(TEST_TOKEN_EXPIRATION_TIME), TEST_EXPIRY)).IgnoreArgument(1).CopyOutArgumentBuffer(1, TEST_TOKEN_EXPIRATION_TIME, sizeof(TEST_TOKEN_EXPIRATION_TIME));
-    STRICT_EXPECTED_CALL(BUFFER_new()).SetReturn(TEST_HASH_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_new()).SetReturn(TEST_TOBEHASHED_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_new()).SetReturn(TEST_RESULT_HANDLE);
-
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, "\n"));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, TEST_TOKEN_EXPIRATION_TIME));
-
-    STRICT_EXPECTED_CALL(STRING_length(TEST_TOBEHASHED_HANDLE)).SetReturn(TEST_LENGTH_TOBEHASHED);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_TOBEHASHED_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_length(TEST_DECODEDKEY_HANDLE)).SetReturn(TEST_LENGTH_DECODEDKEY);
-    STRICT_EXPECTED_CALL(BUFFER_u_char(TEST_DECODEDKEY_HANDLE));
-
-    STRICT_EXPECTED_CALL(HMACSHA256_ComputeHash(IGNORED_PTR_ARG, TEST_LENGTH_DECODEDKEY, IGNORED_PTR_ARG, TEST_LENGTH_TOBEHASHED, TEST_HASH_HANDLE)).IgnoreArgument(1).IgnoreArgument(3);
-    STRICT_EXPECTED_CALL(Base64_Encoder(TEST_HASH_HANDLE)).SetReturn(TEST_BASE64SIGNATURE_HANDLE);
-    STRICT_EXPECTED_CALL(URL_Encode(TEST_BASE64SIGNATURE_HANDLE)).SetReturn(TEST_URLENCODEDSIGNATURE_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_copy(TEST_RESULT_HANDLE, "SharedAccessSignature sr="));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, "&sig=")).SetReturn(1);
-
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_RESULT_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_BASE64SIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_URLENCODEDSIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_TOBEHASHED_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_delete(TEST_HASH_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_delete(TEST_DECODEDKEY_HANDLE));
-
-    // act
-    handle = SASToken_Create(TEST_KEY_HANDLE, TEST_SCOPE_HANDLE, TEST_KEYNAME_HANDLE, TEST_EXPIRY);
-
-    // assert
-    ASSERT_IS_NULL(handle);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-}
-
-/*Tests_SRS_SASTOKEN_06_014: [If there are any errors from the following operations then NULL shall be returned.]*/
-/*Tests_SRS_SASTOKEN_06_018: [The string "&sig=" is appended to result.]*/
-TEST_FUNCTION(SASToken_Create_building_token_concat_signature_fails)
-{
-    // arrange
-    STRING_HANDLE handle;
-
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_KEY_HANDLE)).SetReturn(&TEST_CHAR_ARRAY[0]);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_SCOPE_HANDLE)).SetReturn(TEST_STRING_VALUE);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_KEYNAME_HANDLE)).SetReturn(TEST_STRING_VALUE);
-    STRICT_EXPECTED_CALL(Base64_Decoder(&TEST_CHAR_ARRAY[0])).SetReturn(TEST_DECODEDKEY_HANDLE);
-
-    STRICT_EXPECTED_CALL(size_tToString(IGNORED_PTR_ARG, sizeof(TEST_TOKEN_EXPIRATION_TIME), TEST_EXPIRY)).IgnoreArgument(1).CopyOutArgumentBuffer(1, TEST_TOKEN_EXPIRATION_TIME, sizeof(TEST_TOKEN_EXPIRATION_TIME));
-    STRICT_EXPECTED_CALL(BUFFER_new()).SetReturn(TEST_HASH_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_new()).SetReturn(TEST_TOBEHASHED_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_new()).SetReturn(TEST_RESULT_HANDLE);
-
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, "\n"));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, TEST_TOKEN_EXPIRATION_TIME));
-
-    STRICT_EXPECTED_CALL(STRING_length(TEST_TOBEHASHED_HANDLE)).SetReturn(TEST_LENGTH_TOBEHASHED);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_TOBEHASHED_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_length(TEST_DECODEDKEY_HANDLE)).SetReturn(TEST_LENGTH_DECODEDKEY);
-    STRICT_EXPECTED_CALL(BUFFER_u_char(TEST_DECODEDKEY_HANDLE));
-
-    STRICT_EXPECTED_CALL(HMACSHA256_ComputeHash(IGNORED_PTR_ARG, TEST_LENGTH_DECODEDKEY, IGNORED_PTR_ARG, TEST_LENGTH_TOBEHASHED, TEST_HASH_HANDLE)).IgnoreArgument(1).IgnoreArgument(3);
-    STRICT_EXPECTED_CALL(Base64_Encoder(TEST_HASH_HANDLE)).SetReturn(TEST_BASE64SIGNATURE_HANDLE);
-    STRICT_EXPECTED_CALL(URL_Encode(TEST_BASE64SIGNATURE_HANDLE)).SetReturn(TEST_URLENCODEDSIGNATURE_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_copy(TEST_RESULT_HANDLE, "SharedAccessSignature sr="));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, "&sig="));
-    STRICT_EXPECTED_CALL(STRING_concat_with_STRING(TEST_RESULT_HANDLE, TEST_URLENCODEDSIGNATURE_HANDLE)).SetReturn(1);
-
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_RESULT_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_BASE64SIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_URLENCODEDSIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_TOBEHASHED_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_delete(TEST_HASH_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_delete(TEST_DECODEDKEY_HANDLE));
-
-    // act
-    handle = SASToken_Create(TEST_KEY_HANDLE, TEST_SCOPE_HANDLE, TEST_KEYNAME_HANDLE, TEST_EXPIRY);
-
-    // assert
-    ASSERT_IS_NULL(handle);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-}
-
-/*Tests_SRS_SASTOKEN_06_014: [If there are any errors from the following operations then NULL shall be returned.]*/
-/*Tests_SRS_SASTOKEN_06_019: [The string urlEncodedSignature shall be appended to result.]*/
-TEST_FUNCTION(SASToken_Create_building_token_concat_token_expiration_time_identifier_fails)
-{
-    // arrange
-    STRING_HANDLE handle;
-
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_KEY_HANDLE)).SetReturn(&TEST_CHAR_ARRAY[0]);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_SCOPE_HANDLE)).SetReturn(TEST_STRING_VALUE);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_KEYNAME_HANDLE)).SetReturn(TEST_STRING_VALUE);
-    STRICT_EXPECTED_CALL(Base64_Decoder(&TEST_CHAR_ARRAY[0])).SetReturn(TEST_DECODEDKEY_HANDLE);
-
-    STRICT_EXPECTED_CALL(size_tToString(IGNORED_PTR_ARG, sizeof(TEST_TOKEN_EXPIRATION_TIME), TEST_EXPIRY)).IgnoreArgument(1).CopyOutArgumentBuffer(1, TEST_TOKEN_EXPIRATION_TIME, sizeof(TEST_TOKEN_EXPIRATION_TIME));
-    STRICT_EXPECTED_CALL(BUFFER_new()).SetReturn(TEST_HASH_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_new()).SetReturn(TEST_TOBEHASHED_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_new()).SetReturn(TEST_RESULT_HANDLE);
-
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, "\n"));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, TEST_TOKEN_EXPIRATION_TIME));
-
-    STRICT_EXPECTED_CALL(STRING_length(TEST_TOBEHASHED_HANDLE)).SetReturn(TEST_LENGTH_TOBEHASHED);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_TOBEHASHED_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_length(TEST_DECODEDKEY_HANDLE)).SetReturn(TEST_LENGTH_DECODEDKEY);
-    STRICT_EXPECTED_CALL(BUFFER_u_char(TEST_DECODEDKEY_HANDLE));
-
-    STRICT_EXPECTED_CALL(HMACSHA256_ComputeHash(IGNORED_PTR_ARG, TEST_LENGTH_DECODEDKEY, IGNORED_PTR_ARG, TEST_LENGTH_TOBEHASHED, TEST_HASH_HANDLE)).IgnoreArgument(1).IgnoreArgument(3);
-    STRICT_EXPECTED_CALL(Base64_Encoder(TEST_HASH_HANDLE)).SetReturn(TEST_BASE64SIGNATURE_HANDLE);
-    STRICT_EXPECTED_CALL(URL_Encode(TEST_BASE64SIGNATURE_HANDLE)).SetReturn(TEST_URLENCODEDSIGNATURE_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_copy(TEST_RESULT_HANDLE, "SharedAccessSignature sr="));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, "&sig="));
-    STRICT_EXPECTED_CALL(STRING_concat_with_STRING(TEST_RESULT_HANDLE, TEST_URLENCODEDSIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, "&se=")).SetReturn(1);
-
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_RESULT_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_BASE64SIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_URLENCODEDSIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_TOBEHASHED_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_delete(TEST_HASH_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_delete(TEST_DECODEDKEY_HANDLE));
-
-    // act
-    handle = SASToken_Create(TEST_KEY_HANDLE, TEST_SCOPE_HANDLE, TEST_KEYNAME_HANDLE, TEST_EXPIRY);
-
-    // assert
-    ASSERT_IS_NULL(handle);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-}
-
-/*Tests_SRS_SASTOKEN_06_014: [If there are any errors from the following operations then NULL shall be returned.]*/
-/*Tests_SRS_SASTOKEN_06_020: [The string "&se=" shall be appended to result.]*/
-TEST_FUNCTION(SASToken_Create_building_token_concat_token_expiration_time_fails)
-{
-    // arrange
-    STRING_HANDLE handle;
-
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_KEY_HANDLE)).SetReturn(&TEST_CHAR_ARRAY[0]);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_SCOPE_HANDLE)).SetReturn(TEST_STRING_VALUE);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_KEYNAME_HANDLE)).SetReturn(TEST_STRING_VALUE);
-    STRICT_EXPECTED_CALL(Base64_Decoder(&TEST_CHAR_ARRAY[0])).SetReturn(TEST_DECODEDKEY_HANDLE);
-
-    STRICT_EXPECTED_CALL(size_tToString(IGNORED_PTR_ARG, sizeof(TEST_TOKEN_EXPIRATION_TIME), TEST_EXPIRY)).IgnoreArgument(1).CopyOutArgumentBuffer(1, TEST_TOKEN_EXPIRATION_TIME, sizeof(TEST_TOKEN_EXPIRATION_TIME));
-    STRICT_EXPECTED_CALL(BUFFER_new()).SetReturn(TEST_HASH_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_new()).SetReturn(TEST_TOBEHASHED_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_new()).SetReturn(TEST_RESULT_HANDLE);
-
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, "\n"));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, TEST_TOKEN_EXPIRATION_TIME));
-
-    STRICT_EXPECTED_CALL(STRING_length(TEST_TOBEHASHED_HANDLE)).SetReturn(TEST_LENGTH_TOBEHASHED);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_TOBEHASHED_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_length(TEST_DECODEDKEY_HANDLE)).SetReturn(TEST_LENGTH_DECODEDKEY);
-    STRICT_EXPECTED_CALL(BUFFER_u_char(TEST_DECODEDKEY_HANDLE));
-
-    STRICT_EXPECTED_CALL(HMACSHA256_ComputeHash(IGNORED_PTR_ARG, TEST_LENGTH_DECODEDKEY, IGNORED_PTR_ARG, TEST_LENGTH_TOBEHASHED, TEST_HASH_HANDLE)).IgnoreArgument(1).IgnoreArgument(3);
-    STRICT_EXPECTED_CALL(Base64_Encoder(TEST_HASH_HANDLE)).SetReturn(TEST_BASE64SIGNATURE_HANDLE);
-    STRICT_EXPECTED_CALL(URL_Encode(TEST_BASE64SIGNATURE_HANDLE)).SetReturn(TEST_URLENCODEDSIGNATURE_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_copy(TEST_RESULT_HANDLE, "SharedAccessSignature sr="));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, "&sig="));
-    STRICT_EXPECTED_CALL(STRING_concat_with_STRING(TEST_RESULT_HANDLE, TEST_URLENCODEDSIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, "&se="));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, TEST_TOKEN_EXPIRATION_TIME)).SetReturn(1);
-
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_RESULT_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_BASE64SIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_URLENCODEDSIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_TOBEHASHED_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_delete(TEST_HASH_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_delete(TEST_DECODEDKEY_HANDLE));
-
-    // act
-    handle = SASToken_Create(TEST_KEY_HANDLE, TEST_SCOPE_HANDLE, TEST_KEYNAME_HANDLE, TEST_EXPIRY);
-
-    // assert
-    ASSERT_IS_NULL(handle);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-}
-
-/*Tests_SRS_SASTOKEN_06_014: [If there are any errors from the following operations then NULL shall be returned.]*/
-/*Tests_SRS_SASTOKEN_06_021: [tokenExpirationTime is appended to result.]*/
-TEST_FUNCTION(SASToken_Create_building_token_concat_keyname_identifier_fails)
-{
-    // arrange
-    STRING_HANDLE handle;
-
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_KEY_HANDLE)).SetReturn(&TEST_CHAR_ARRAY[0]);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_SCOPE_HANDLE)).SetReturn(TEST_STRING_VALUE);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_KEYNAME_HANDLE)).SetReturn(TEST_STRING_VALUE);
-    STRICT_EXPECTED_CALL(Base64_Decoder(&TEST_CHAR_ARRAY[0])).SetReturn(TEST_DECODEDKEY_HANDLE);
-
-    STRICT_EXPECTED_CALL(size_tToString(IGNORED_PTR_ARG, sizeof(TEST_TOKEN_EXPIRATION_TIME), TEST_EXPIRY)).IgnoreArgument(1).CopyOutArgumentBuffer(1, TEST_TOKEN_EXPIRATION_TIME, sizeof(TEST_TOKEN_EXPIRATION_TIME));
-    STRICT_EXPECTED_CALL(BUFFER_new()).SetReturn(TEST_HASH_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_new()).SetReturn(TEST_TOBEHASHED_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_new()).SetReturn(TEST_RESULT_HANDLE);
-
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, "\n"));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, TEST_TOKEN_EXPIRATION_TIME));
-
-    STRICT_EXPECTED_CALL(STRING_length(TEST_TOBEHASHED_HANDLE)).SetReturn(TEST_LENGTH_TOBEHASHED);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_TOBEHASHED_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_length(TEST_DECODEDKEY_HANDLE)).SetReturn(TEST_LENGTH_DECODEDKEY);
-    STRICT_EXPECTED_CALL(BUFFER_u_char(TEST_DECODEDKEY_HANDLE));
-
-    STRICT_EXPECTED_CALL(HMACSHA256_ComputeHash(IGNORED_PTR_ARG, TEST_LENGTH_DECODEDKEY, IGNORED_PTR_ARG, TEST_LENGTH_TOBEHASHED, TEST_HASH_HANDLE)).IgnoreArgument(1).IgnoreArgument(3);
-    STRICT_EXPECTED_CALL(Base64_Encoder(TEST_HASH_HANDLE)).SetReturn(TEST_BASE64SIGNATURE_HANDLE);
-    STRICT_EXPECTED_CALL(URL_Encode(TEST_BASE64SIGNATURE_HANDLE)).SetReturn(TEST_URLENCODEDSIGNATURE_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_copy(TEST_RESULT_HANDLE, "SharedAccessSignature sr="));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, "&sig="));
-    STRICT_EXPECTED_CALL(STRING_concat_with_STRING(TEST_RESULT_HANDLE, TEST_URLENCODEDSIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, "&se="));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, TEST_TOKEN_EXPIRATION_TIME));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, "&skn=")).SetReturn(1);
-
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_RESULT_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_BASE64SIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_URLENCODEDSIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_TOBEHASHED_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_delete(TEST_HASH_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_delete(TEST_DECODEDKEY_HANDLE));
-
-    // act
-    handle = SASToken_Create(TEST_KEY_HANDLE, TEST_SCOPE_HANDLE, TEST_KEYNAME_HANDLE, TEST_EXPIRY);
-
-    // assert
-    ASSERT_IS_NULL(handle);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-}
-
-/*Tests_SRS_SASTOKEN_06_014: [If there are any errors from the following operations then NULL shall be returned.]*/
-/*Tests_SRS_SASTOKEN_06_022: [If keyName is non-NULL, the string "&skn=" is appended to result.]*/
-TEST_FUNCTION(SASToken_Create_building_token_concat_keyname_fails)
-{
-    // arrange
-    STRING_HANDLE handle;
-
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_KEY_HANDLE)).SetReturn(&TEST_CHAR_ARRAY[0]);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_SCOPE_HANDLE)).SetReturn(TEST_STRING_VALUE);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_KEYNAME_HANDLE)).SetReturn(TEST_STRING_VALUE);
-    STRICT_EXPECTED_CALL(Base64_Decoder(&TEST_CHAR_ARRAY[0])).SetReturn(TEST_DECODEDKEY_HANDLE);
-
-    STRICT_EXPECTED_CALL(size_tToString(IGNORED_PTR_ARG, sizeof(TEST_TOKEN_EXPIRATION_TIME), TEST_EXPIRY)).IgnoreArgument(1).CopyOutArgumentBuffer(1, TEST_TOKEN_EXPIRATION_TIME, sizeof(TEST_TOKEN_EXPIRATION_TIME));
-    STRICT_EXPECTED_CALL(BUFFER_new()).SetReturn(TEST_HASH_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_new()).SetReturn(TEST_TOBEHASHED_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_new()).SetReturn(TEST_RESULT_HANDLE);
-
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, "\n"));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, TEST_TOKEN_EXPIRATION_TIME));
-
-    STRICT_EXPECTED_CALL(STRING_length(TEST_TOBEHASHED_HANDLE)).SetReturn(TEST_LENGTH_TOBEHASHED);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_TOBEHASHED_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_length(TEST_DECODEDKEY_HANDLE)).SetReturn(TEST_LENGTH_DECODEDKEY);
-    STRICT_EXPECTED_CALL(BUFFER_u_char(TEST_DECODEDKEY_HANDLE));
-
-    STRICT_EXPECTED_CALL(HMACSHA256_ComputeHash(IGNORED_PTR_ARG, TEST_LENGTH_DECODEDKEY, IGNORED_PTR_ARG, TEST_LENGTH_TOBEHASHED, TEST_HASH_HANDLE)).IgnoreArgument(1).IgnoreArgument(3);
-    STRICT_EXPECTED_CALL(Base64_Encoder(TEST_HASH_HANDLE)).SetReturn(TEST_BASE64SIGNATURE_HANDLE);
-    STRICT_EXPECTED_CALL(URL_Encode(TEST_BASE64SIGNATURE_HANDLE)).SetReturn(TEST_URLENCODEDSIGNATURE_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_copy(TEST_RESULT_HANDLE, "SharedAccessSignature sr="));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, "&sig="));
-    STRICT_EXPECTED_CALL(STRING_concat_with_STRING(TEST_RESULT_HANDLE, TEST_URLENCODEDSIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, "&se="));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, TEST_TOKEN_EXPIRATION_TIME));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, "&skn="));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, IGNORED_PTR_ARG)).SetReturn(1);
-
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_RESULT_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_BASE64SIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_URLENCODEDSIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_TOBEHASHED_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_delete(TEST_HASH_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_delete(TEST_DECODEDKEY_HANDLE));
-
-    // act
-    handle = SASToken_Create(TEST_KEY_HANDLE, TEST_SCOPE_HANDLE, TEST_KEYNAME_HANDLE, TEST_EXPIRY);
-
-    // assert
-    ASSERT_IS_NULL(handle);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-}
-
 /*Tests_SRS_SASTOKEN_06_023: [The argument keyName is appended to result.]*/
 TEST_FUNCTION(SASToken_Create_succeeds)
 {
@@ -1706,39 +1308,7 @@ TEST_FUNCTION(SASToken_Create_succeeds)
     STRICT_EXPECTED_CALL(STRING_c_str(TEST_SCOPE_HANDLE)).SetReturn(TEST_STRING_VALUE);
     STRICT_EXPECTED_CALL(STRING_c_str(TEST_KEYNAME_HANDLE)).SetReturn(TEST_STRING_VALUE);
 
-    STRICT_EXPECTED_CALL(Base64_Decoder(&TEST_CHAR_ARRAY[0])).SetReturn(TEST_DECODEDKEY_HANDLE);
-    STRICT_EXPECTED_CALL(size_tToString(IGNORED_PTR_ARG, sizeof(TEST_TOKEN_EXPIRATION_TIME), TEST_EXPIRY)).IgnoreArgument(1).CopyOutArgumentBuffer(1, TEST_TOKEN_EXPIRATION_TIME, sizeof(TEST_TOKEN_EXPIRATION_TIME));
-
-    STRICT_EXPECTED_CALL(BUFFER_new()).SetReturn(TEST_HASH_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_new()).SetReturn(TEST_TOBEHASHED_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_new()).SetReturn(TEST_RESULT_HANDLE);
-
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, "\n"));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, TEST_TOKEN_EXPIRATION_TIME));
-
-    STRICT_EXPECTED_CALL(STRING_length(TEST_TOBEHASHED_HANDLE)).SetReturn(TEST_LENGTH_TOBEHASHED);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_TOBEHASHED_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_length(TEST_DECODEDKEY_HANDLE)).SetReturn(TEST_LENGTH_DECODEDKEY);
-    STRICT_EXPECTED_CALL(BUFFER_u_char(TEST_DECODEDKEY_HANDLE));
-
-    STRICT_EXPECTED_CALL(HMACSHA256_ComputeHash(IGNORED_PTR_ARG, TEST_LENGTH_DECODEDKEY, IGNORED_PTR_ARG, TEST_LENGTH_TOBEHASHED, TEST_HASH_HANDLE)).IgnoreArgument(1).IgnoreArgument(3);
-    STRICT_EXPECTED_CALL(Base64_Encoder(TEST_HASH_HANDLE)).SetReturn(TEST_BASE64SIGNATURE_HANDLE);
-    STRICT_EXPECTED_CALL(URL_Encode(TEST_BASE64SIGNATURE_HANDLE)).SetReturn(TEST_URLENCODEDSIGNATURE_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_copy(TEST_RESULT_HANDLE, "SharedAccessSignature sr="));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, "&sig="));
-    STRICT_EXPECTED_CALL(STRING_concat_with_STRING(TEST_RESULT_HANDLE, TEST_URLENCODEDSIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, "&se="));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, TEST_TOKEN_EXPIRATION_TIME));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, "&skn="));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, IGNORED_PTR_ARG));
-
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_BASE64SIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_URLENCODEDSIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_TOBEHASHED_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_delete(TEST_HASH_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_delete(TEST_DECODEDKEY_HANDLE));
+    setup_SASToken_mocks();
 
     // act
     handle = SASToken_Create(TEST_KEY_HANDLE, TEST_SCOPE_HANDLE, TEST_KEYNAME_HANDLE, TEST_EXPIRY);
@@ -1753,39 +1323,7 @@ TEST_FUNCTION(SASToken_CreateString_succeeds)
     // arrange
     STRING_HANDLE handle;
 
-    STRICT_EXPECTED_CALL(Base64_Decoder(&TEST_CHAR_ARRAY[0])).SetReturn(TEST_DECODEDKEY_HANDLE);
-    STRICT_EXPECTED_CALL(size_tToString(IGNORED_PTR_ARG, sizeof(TEST_TOKEN_EXPIRATION_TIME), TEST_EXPIRY)).IgnoreArgument(1).CopyOutArgumentBuffer(1, TEST_TOKEN_EXPIRATION_TIME, sizeof(TEST_TOKEN_EXPIRATION_TIME));
-
-    STRICT_EXPECTED_CALL(BUFFER_new()).SetReturn(TEST_HASH_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_new()).SetReturn(TEST_TOBEHASHED_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_new()).SetReturn(TEST_RESULT_HANDLE);
-
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, "\n"));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_TOBEHASHED_HANDLE, TEST_TOKEN_EXPIRATION_TIME));
-
-    STRICT_EXPECTED_CALL(STRING_length(TEST_TOBEHASHED_HANDLE)).SetReturn(TEST_LENGTH_TOBEHASHED);
-    STRICT_EXPECTED_CALL(STRING_c_str(TEST_TOBEHASHED_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_length(TEST_DECODEDKEY_HANDLE)).SetReturn(TEST_LENGTH_DECODEDKEY);
-    STRICT_EXPECTED_CALL(BUFFER_u_char(TEST_DECODEDKEY_HANDLE));
-
-    STRICT_EXPECTED_CALL(HMACSHA256_ComputeHash(IGNORED_PTR_ARG, TEST_LENGTH_DECODEDKEY, IGNORED_PTR_ARG, TEST_LENGTH_TOBEHASHED, TEST_HASH_HANDLE)).IgnoreArgument(1).IgnoreArgument(3);
-    STRICT_EXPECTED_CALL(Base64_Encoder(TEST_HASH_HANDLE)).SetReturn(TEST_BASE64SIGNATURE_HANDLE);
-    STRICT_EXPECTED_CALL(URL_Encode(TEST_BASE64SIGNATURE_HANDLE)).SetReturn(TEST_URLENCODEDSIGNATURE_HANDLE);
-    STRICT_EXPECTED_CALL(STRING_copy(TEST_RESULT_HANDLE, "SharedAccessSignature sr="));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, "&sig="));
-    STRICT_EXPECTED_CALL(STRING_concat_with_STRING(TEST_RESULT_HANDLE, TEST_URLENCODEDSIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, "&se="));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, TEST_TOKEN_EXPIRATION_TIME));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, "&skn="));
-    STRICT_EXPECTED_CALL(STRING_concat(TEST_RESULT_HANDLE, IGNORED_PTR_ARG));
-
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_BASE64SIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_URLENCODEDSIGNATURE_HANDLE));
-    STRICT_EXPECTED_CALL(STRING_delete(TEST_TOBEHASHED_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_delete(TEST_HASH_HANDLE));
-    STRICT_EXPECTED_CALL(BUFFER_delete(TEST_DECODEDKEY_HANDLE));
+    setup_SASToken_mocks();
 
     // act
     handle = SASToken_CreateString(TEST_CHAR_ARRAY, TEST_STRING_VALUE, TEST_STRING_VALUE, TEST_EXPIRY);
