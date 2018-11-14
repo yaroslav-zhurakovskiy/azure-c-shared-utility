@@ -292,6 +292,295 @@ int sprintf_s(char* dst, size_t dstSizeInBytes, const char* format, ...)
 }
 #endif /* _MSC_VER || MINGW_HAS_SECURE_API */
 
+#if defined(ARDUINO_ARCH_ESP8266) || defined(ESP8266_RTOS)
+/*Codes_SRS_CRT_ABSTRACTIONS_21_023: [If the string is 'INF' of 'INFINITY' (ignoring case), the strtof_s must return the INFINITY value for float.]*/
+/*Codes_SRS_CRT_ABSTRACTIONS_21_024: [If the string is 'NAN' or 'NAN(...)' (ignoring case), the strtof_s must return 0.0f and points endptr to the first character after the 'NAN' sequence.]*/
+/*Codes_SRS_CRT_ABSTRACTIONS_21_033: [If the string is 'INF' of 'INFINITY' (ignoring case), the strtold_s must return the INFINITY value for long double.]*/
+/*Codes_SRS_CRT_ABSTRACTIONS_21_034: [If the string is 'NAN' or 'NAN(...)' (ignoring case), the strtold_s must return 0.0 and points endptr to the first character after the 'NAN' sequence.]*/
+static int substricmp(const char* nptr, const char* subsrt)
+{
+    int result = 0;
+    while (((*subsrt) != '\0') && (result == 0))
+    {
+        result = TOUPPER(*nptr) - TOUPPER(*subsrt);
+        nptr++;
+        subsrt++;
+    }
+    return result;
+}
+
+/*Codes_SRS_CRT_ABSTRACTIONS_21_023: [If the string is 'INF' of 'INFINITY' (ignoring case), the strtof_s must return the INFINITY value for float.]*/
+/*Codes_SRS_CRT_ABSTRACTIONS_21_033: [If the string is 'INF' of 'INFINITY' (ignoring case), the strtold_s must return the INFINITY value for long double.]*/
+static bool isInfinity(const char** endptr)
+{
+    bool result = false;
+    if (substricmp((*endptr), "INF") == 0)
+    {
+        (*endptr) += 3;
+        result = true;
+        if (substricmp((*endptr), "INITY") == 0)
+        {
+            (*endptr) += 5;
+        }
+    }
+    return result;
+}
+
+/*Codes_SRS_CRT_ABSTRACTIONS_21_024: [If the string is 'NAN' or 'NAN(...)' (ignoring case), the strtof_s must return 0.0f and points endptr to the first character after the 'NAN' sequence.]*/
+/*Codes_SRS_CRT_ABSTRACTIONS_21_034: [If the string is 'NAN' or 'NAN(...)' (ignoring case), the strtold_s must return 0.0 and points endptr to the first character after the 'NAN' sequence.]*/
+static bool isNaN(const char** endptr)
+{
+    const char* runner = (*endptr);
+    bool result = false;
+    if (substricmp(runner, "NAN") == 0)
+    {
+        runner += 3;
+        result = true;
+        if ((*runner) == '(')
+        {
+            do
+            {
+                runner++;
+            } while (((*runner) != '\0') && ((*runner) != ')'));
+            if ((*runner) == ')')
+                runner++;
+            else
+                result = false;
+        }
+    }
+    if (result)
+        (*endptr) = runner;
+    return result;
+}
+
+#define FLOAT_STRING_TYPE_VALUES    \
+            FST_INFINITY,           \
+            FST_NAN,                \
+            FST_NUMBER,             \
+            FST_OVERFLOW,           \
+            FST_ERROR
+
+DEFINE_ENUM(FLOAT_STRING_TYPE, FLOAT_STRING_TYPE_VALUES);
+
+static FLOAT_STRING_TYPE splitFloatString(const char* nptr, char** endptr, int *signal, double *fraction, int *exponential)
+{
+    FLOAT_STRING_TYPE result = FST_ERROR;
+
+    unsigned long long ullInteger = 0;
+    unsigned long long ullFraction = 0;
+    int integerSize = 0;
+    int fractionSize = 0;
+    char* startptr;
+
+    (*endptr) = (char*)nptr;
+
+    /*Codes_SRS_CRT_ABSTRACTIONS_21_018: [The white-space for strtof_s must be one of the characters ' ', '\f', '\n', '\r', '\t', '\v'.]*/
+    /*Codes_SRS_CRT_ABSTRACTIONS_21_028: [The white-space for strtold_s must be one of the characters ' ', '\f', '\n', '\r', '\t', '\v'.]*/
+    while (IS_SPACE(**endptr))
+    {
+        (*endptr)++;
+    }
+
+    /*Codes_SRS_CRT_ABSTRACTIONS_21_019: [The valid sequence for strtof_s starts after the first non-white - space character, followed by an optional positive or negative sign, a number, 'INF', or 'NAN' (ignoring case).]*/
+    /*Codes_SRS_CRT_ABSTRACTIONS_21_029: [The valid sequence for strtold_s starts after the first non-white - space character, followed by an optional positive or negative sign, a number, 'INF', or 'NAN' (ignoring case).]*/
+    (*signal) = +1;
+    if ((**endptr) == '+')
+    {
+        (*endptr)++;
+    }
+    else if ((**endptr) == '-')
+    {
+        (*signal) = -1;
+        (*endptr)++;
+    }
+
+    /*Codes_SRS_CRT_ABSTRACTIONS_21_023: [If the string is 'INF' of 'INFINITY' (ignoring case), the strtof_s must return the INFINITY value for float.]*/
+    /*Codes_SRS_CRT_ABSTRACTIONS_21_033: [If the string is 'INF' of 'INFINITY' (ignoring case), the strtold_s must return the INFINITY value for long double.]*/
+    if (isInfinity((const char**)endptr))
+    {
+        result = FST_INFINITY;
+    }
+    /*Codes_SRS_CRT_ABSTRACTIONS_21_034: [If the string is 'NAN' or 'NAN(...)' (ignoring case), the strtold_s must return 0.0 and points endptr to the first character after the 'NAN' sequence.]*/
+    /*Codes_SRS_CRT_ABSTRACTIONS_21_024: [If the string is 'NAN' or 'NAN(...)' (ignoring case), the strtof_s must return 0.0f and points endptr to the first character after the 'NAN' sequence.]*/
+    else if (isNaN((const char**)endptr))
+    {
+        result = FST_NAN;
+    }
+    else if (IN_BASE_RANGE(DIGIT_VAL(**endptr), 10))
+    {
+        result = FST_NUMBER;
+        startptr = *endptr;
+        /* integers will go to the fraction and exponential. */
+        ullInteger = strtoull_s(startptr, endptr, 10);
+        integerSize = (int)((*endptr) - startptr);
+        if ((ullInteger == ULLONG_MAX) && (errno != 0))
+        {
+            result = FST_OVERFLOW;
+        }
+
+        /* get the real fraction part, if exist. */
+        if ((**endptr) == '.')
+        {
+            startptr = (*endptr) + 1;
+            ullFraction = strtoull_s(startptr, endptr, 10);
+            fractionSize = (int)((*endptr) - startptr);
+            if ((ullFraction == ULLONG_MAX) && (errno != 0))
+            {
+                result = FST_OVERFLOW;
+            }
+        }
+
+        if (((**endptr) == 'e') || ((**endptr) == 'E'))
+        {
+            startptr = (*endptr) + 1;
+            (*exponential) = (int)strtol(startptr, endptr, 10);
+            if (((*exponential) < (DBL_MAX_10_EXP * (-1))) || ((*exponential) > DBL_MAX_10_EXP))
+            {
+                result = FST_OVERFLOW;
+            }
+        }
+        else
+        {
+            (*exponential) = 0;
+        }
+
+        if (result == FST_NUMBER)
+        {
+            /* Add ullInteger to ullFraction. */
+            ullFraction += (ullInteger * (unsigned long long)(pow(10, (double)fractionSize)));
+            (*fraction) = ((double)ullFraction / (pow(10.0f, (double)(fractionSize + integerSize - 1))));
+
+            /* Unify rest of integerSize and fractionSize in the exponential. */
+            (*exponential) += integerSize - 1;
+        }
+    }
+
+    return result;
+}
+
+/*Codes_SRS_CRT_ABSTRACTIONS_21_015: [The strtof_s must convert the initial portion of the string pointed to by nptr to float representation.]*/
+/*Codes_SRS_CRT_ABSTRACTIONS_21_016: [The strtof_s must return the float that represents the value in the initial part of the string. If any.]*/
+float strtof_s(const char* nptr, char** endptr)
+{
+    int signal = 1;
+    double fraction;
+    int exponential;
+    char* runner = (char*)nptr;
+    double val;
+
+    /*Codes_SRS_CRT_ABSTRACTIONS_21_021: [If no conversion could be performed, the strtof_s returns the value 0.0.]*/
+    float result = 0.0;
+
+    /*Codes_SRS_CRT_ABSTRACTIONS_21_036: [**If the nptr is NULL, the strtof_s must not perform any conversion and must returns 0.0f; endptr must receive NULL, provided that endptr is not a NULL pointer.]*/
+    if (nptr != NULL)
+    {
+        switch (splitFloatString(nptr, &runner, &signal, &fraction, &exponential))
+        {
+        case FST_INFINITY:
+            /*Codes_SRS_CRT_ABSTRACTIONS_21_023: [If the string is 'INF' of 'INFINITY' (ignoring case), the strtof_s must return the INFINITY value for float.]*/
+            result = INFINITY * (signal);
+            errno = 0;
+            break;
+        case FST_NAN:
+            /*Codes_SRS_CRT_ABSTRACTIONS_21_024: [If the string is 'NAN' or 'NAN(...)' (ignoring case), the strtof_s must return 0.0f and points endptr to the first character after the 'NAN' sequence.]*/
+            result = NAN;
+            break;
+        case FST_NUMBER:
+            val = fraction * pow(10.0, (double)exponential) * (double)signal;
+            if ((val >= (FLT_MAX * (-1))) && (val <= FLT_MAX))
+            {
+                /*Codes_SRS_CRT_ABSTRACTIONS_21_016: [The strtof_s must return the float that represents the value in the initial part of the string. If any.]*/
+                result = (float)val;
+            }
+            else
+            {
+                /*Codes_SRS_CRT_ABSTRACTIONS_21_022: [If the correct value is outside the range, the strtof_s returns the value plus or minus HUGE_VALF, and errno will receive the value ERANGE.]*/
+                result = HUGE_VALF * (signal);
+                errno = ERANGE;
+            }
+            break;
+        case FST_OVERFLOW:
+            /*Codes_SRS_CRT_ABSTRACTIONS_21_022: [If the correct value is outside the range, the strtof_s returns the value plus or minus HUGE_VALF, and errno will receive the value ERANGE.]*/
+            result = HUGE_VALF * (signal);
+            errno = ERANGE;
+            break;
+        default:
+            /*Codes_SRS_CRT_ABSTRACTIONS_21_020: [If the subject sequence is empty or does not have the expected form, the strtof_s must not perform any conversion and must returns 0.0f; the value of nptr is stored in the object pointed to by endptr, provided that endptr is not a NULL pointer.]*/
+            runner = (char*)nptr;
+            break;
+        }
+    }
+
+    /*Codes_SRS_CRT_ABSTRACTIONS_21_017: [The strtof_s must return in endptr a final string of one or more unrecognized characters, including the terminating null character of the input string.]*/
+    if (endptr != NULL)
+    {
+        (*endptr) = runner;
+    }
+
+    return result;
+}
+
+/*Codes_SRS_CRT_ABSTRACTIONS_21_025: [The strtold_s must convert the initial portion of the string pointed to by nptr to long double representation.]*/
+/*Codes_SRS_CRT_ABSTRACTIONS_21_026: [The strtold_s must return the long double that represents the value in the initial part of the string. If any.]*/
+long double strtold_s(const char* nptr, char** endptr)
+{
+    int signal = 1;
+    double fraction;
+    int exponential;
+    char* runner = (char*)nptr;
+
+    /*Codes_SRS_CRT_ABSTRACTIONS_21_031: [If no conversion could be performed, the strtold_s returns the value 0.0.]*/
+    long double result = 0.0;
+
+    /*Codes_SRS_CRT_ABSTRACTIONS_21_037: [If the nptr is NULL, the strtold_s must not perform any conversion and must returns 0.0; endptr must receive NULL, provided that endptr is not a NULL pointer.]*/
+    if (nptr != NULL)
+    {
+        switch (splitFloatString(nptr, &runner, &signal, &fraction, &exponential))
+        {
+        case FST_INFINITY:
+            /*Codes_SRS_CRT_ABSTRACTIONS_21_033: [If the string is 'INF' of 'INFINITY' (ignoring case), the strtold_s must return the INFINITY value for long double.]*/
+            result = INFINITY * (signal);
+            errno = 0;
+            break;
+        case FST_NAN:
+            /*Codes_SRS_CRT_ABSTRACTIONS_21_034: [If the string is 'NAN' or 'NAN(...)' (ignoring case), the strtold_s must return 0.0 and points endptr to the first character after the 'NAN' sequence.]*/
+            result = NAN;
+            break;
+        case FST_NUMBER:
+            if ((exponential != DBL_MAX_10_EXP || (fraction <= 1.7976931348623158)) &&
+                (exponential != (DBL_MAX_10_EXP * (-1)) || (fraction <= 2.2250738585072014)))
+            {
+                /*Codes_SRS_CRT_ABSTRACTIONS_21_026: [The strtold_s must return the long double that represents the value in the initial part of the string. If any.]*/
+                result = fraction * pow(10.0, (double)exponential) * (double)signal;
+            }
+            else
+            {
+                /*Codes_SRS_CRT_ABSTRACTIONS_21_032: [If the correct value is outside the range, the strtold_s returns the value plus or minus HUGE_VALL, and errno will receive the value ERANGE.]*/
+                result = HUGE_VALF * (signal);
+                errno = ERANGE;
+            }
+            break;
+        case FST_OVERFLOW:
+            /*Codes_SRS_CRT_ABSTRACTIONS_21_032: [If the correct value is outside the range, the strtold_s returns the value plus or minus HUGE_VALL, and errno will receive the value ERANGE.]*/
+            result = HUGE_VALF * (signal);
+            errno = ERANGE;
+            break;
+        default:
+            /*Codes_SRS_CRT_ABSTRACTIONS_21_030: [If the subject sequence is empty or does not have the expected form, the strtold_s must not perform any conversion and must returns 0.0; the value of nptr is stored in the object pointed to by endptr, provided that endptr is not a NULL pointer.]*/
+            runner = (char*)nptr;
+            break;
+        }
+    }
+
+    /*Codes_SRS_CRT_ABSTRACTIONS_21_027: [The strtold_s must return in endptr a final string of one or more unrecognized characters, including the terminating null character of the input string.]*/
+    if (endptr != NULL)
+    {
+        (*endptr) = runner;
+    }
+
+    return result;
+}
+
 /*Codes_SRS_CRT_ABSTRACTIONS_21_006: [The strtoull_s must use the letters from a(or A) through z(or Z) to represent the numbers between 10 to 35.]*/
 /* returns the integer value that correspond to the character 'c'. If the character is invalid, it returns -1. */
 #define DIGIT_VAL(c)         (((c>='0') && (c<='9')) ? (c-'0') : ((c>='a') && (c<='z')) ? (c-'a'+10) : ((c>='A') && (c<='Z')) ? (c-'A'+10) : -1)
@@ -315,7 +604,7 @@ unsigned long long strtoull_s(const char* nptr, char** endptr, int base)
     /*Codes_SRS_CRT_ABSTRACTIONS_21_012: [If the subject sequence is empty or does not have the expected form, the strtoull_s must not perform any conversion; the value of nptr is stored in the object pointed to by endptr, provided that endptr is not a NULL pointer.]*/
     /*Codes_SRS_CRT_ABSTRACTIONS_21_013: [If no conversion could be performed, the strtoull_s returns the value 0L.]*/
     /*Codes_SRS_CRT_ABSTRACTIONS_21_035: [If the nptr is NULL, the strtoull_s must **not** perform any conversion and must returns 0L; endptr must receive NULL, provided that endptr is not a NULL pointer.]*/
-        if (((base >= 2) || (base == 0)) && (base <= 36) && (runner != NULL))
+    if (((base >= 2) || (base == 0)) && (base <= 36) && (runner != NULL))
     {
         /*Codes_SRS_CRT_ABSTRACTIONS_21_011: [The valid sequence starts after the first non-white-space character, followed by an optional positive or negative sign, a number or a letter(depending of the base).]*/
         /*Codes_SRS_CRT_ABSTRACTIONS_21_010: [The white-space must be one of the characters ' ', '\f', '\n', '\r', '\t', '\v'.]*/
@@ -336,7 +625,7 @@ unsigned long long strtoull_s(const char* nptr, char** endptr, int base)
 
         if ((*runner) == '0')
         {
-            if ((*(runner+1) == 'x') || (*(runner+1) == 'X'))
+            if ((*(runner + 1) == 'x') || (*(runner + 1) == 'X'))
             {
                 /*Codes_SRS_CRT_ABSTRACTIONS_21_008: [If the base is 0 and '0x' or '0X' precedes the number, strtoull_s must convert to a hexadecimal (base 16).]*/
                 /* hexadecimal... */
@@ -346,7 +635,7 @@ unsigned long long strtoull_s(const char* nptr, char** endptr, int base)
                     runner += 2;
                 }
             }
-            else if((base == 0) || (base == 8))
+            else if ((base == 0) || (base == 8))
             {
                 /*Codes_SRS_CRT_ABSTRACTIONS_21_009: [If the base is 0 and '0' precedes the number, strtoull_s must convert to an octal (base 8).]*/
                 /* octal... */
@@ -355,7 +644,7 @@ unsigned long long strtoull_s(const char* nptr, char** endptr, int base)
             }
         }
 
-        if(base == 0)
+        if (base == 0)
         {
             /*Codes_SRS_CRT_ABSTRACTIONS_21_007: [If the base is 0 and no special chars precedes the number, strtoull_s must convert to a decimal (base 10).]*/
             /* decimal... */
@@ -403,6 +692,7 @@ unsigned long long strtoull_s(const char* nptr, char** endptr, int base)
 
     return result;
 }
+#endif
 
 /*Codes_SRS_CRT_ABSTRACTIONS_99_038: [mallocAndstrcpy_s shall allocate memory for destination buffer to fit the string in the source parameter.]*/
 int mallocAndStrcpy_s(char** destination, const char* source)
