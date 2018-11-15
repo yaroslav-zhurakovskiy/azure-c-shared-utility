@@ -38,6 +38,9 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(MEMORYCHECK_COMMAND_OPTIONS "--leak-check=full --error-exitcode=1")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     set(MACOSX TRUE)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Generic" AND AZURE_CMAKE_TYPE STREQUAL "MBEDOS")
+    set(MBEDOS TRUE)
+    add_definitions(-DMBEDOS)
 endif()
 
 include(CTest)
@@ -124,7 +127,6 @@ endif()
 if(NOT "${compileOption_CXX}" STREQUAL "OFF")
     set(CMAKE_CXX_FLAGS "${compileOption_CXX} ${CMAKE_CXX_FLAGS}")
 endif()
-
 
 include(CheckCXXCompilerFlag)
 CHECK_CXX_COMPILER_FLAG("-std=c++11" CXX_FLAG_CXX11)

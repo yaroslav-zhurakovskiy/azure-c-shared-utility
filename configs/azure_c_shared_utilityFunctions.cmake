@@ -671,6 +671,24 @@ function(set_platform_files c_shared_dir)
         else()
             set(UNIQUEID_C_FILE ${c_shared_dir}/adapters/uniqueid_win32.c PARENT_SCOPE)
         endif()
+    elseif (MBEDOS)
+        if(${use_condition})
+        endif()
+
+        set(XLOGGING_C_FILE ${c_shared_dir}/src/xlogging.c PARENT_SCOPE)
+        set(LOGGING_H_FILE ${c_shared_dir}/inc/azure_c_shared_utility/consolelogger.h PARENT_SCOPE)
+
+        set(THREAD_C_FILE ${c_shared_dir}/adapters/threadapi_rtx_mbed.cpp PARENT_SCOPE)
+        set(LOCK_C_FILE ${c_shared_dir}/adapters/lock_rtx_mbed.cpp PARENT_SCOPE)
+        set(HTTP_C_FILE ${c_shared_dir}/adapters/httpapi_compact.c PARENT_SCOPE)
+
+        set(PLATFORM_C_FILE ${c_shared_dir}/adapters/platform_mbed.cpp PARENT_SCOPE)
+
+        set(SOCKETIO_C_FILE ${c_shared_dir}/adapters/socketio_mbed.c PARENT_SCOPE)
+
+        set(TICKCOUTER_C_FILE ${c_shared_dir}/adapters/tickcounter_mbed.cpp PARENT_SCOPE)
+
+        set(UNIQUEID_C_FILE ${c_shared_dir}/adapters/uniqueid_stub.c PARENT_SCOPE)
     else()
         set(XLOGGING_C_FILE ${c_shared_dir}/src/xlogging.c PARENT_SCOPE)
         set(LOGGING_C_FILE ${c_shared_dir}/src/consolelogger.c PARENT_SCOPE)
