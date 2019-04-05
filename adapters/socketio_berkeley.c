@@ -389,8 +389,6 @@ static int wait_for_connection(SOCKET_IO_INSTANCE* socket_io_instance)
     return result;
 }
 
-
-
 #ifndef __APPLE__
 static void destroy_network_interface_descriptions(NETWORK_INTERFACE_DESCRIPTION* nid)
 {
@@ -753,15 +751,18 @@ int socketio_open(CONCRETE_IO_HANDLE socket_io, ON_IO_OPEN_COMPLETE on_io_open_c
             {
                 LogError("Failure: failed selecting target network interface (MACADDR=%s).", socket_io_instance->target_mac_address);
                 result = MU_FAILURE;
+                close(socket_io_instance->socket);
             }
 #endif //__APPLE__
             else if ((result = lookup_address_and_initiate_socket_connection(socket_io_instance)) != 0)
             {
                 LogError("lookup_address_and_connect_socket failed");
+                close(socket_io_instance->socket);
             }
             else if ((result = wait_for_connection(socket_io_instance)) != 0)
             {
-                LogError("wait_for_connection failed");
+                LogError("wait_for_connection failed connecting to %s", socket_io_instance->hostname);
+                close(socket_io_instance->socket);
             }
 
             if (result == 0)
