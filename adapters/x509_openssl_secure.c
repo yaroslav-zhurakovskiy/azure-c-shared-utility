@@ -175,6 +175,7 @@ int x509_openssl_add_credentials(SSL_CTX* ssl_ctx, const char* x509certificate, 
     }
     else
     {
+        // Don't need to add the private key since it's in the HSM
         /*BIO* bio_key = BIO_new_mem_buf((char*)x509privatekey, -1);
         if (bio_key == NULL)
         {
@@ -241,8 +242,6 @@ int x509_openssl_add_credentials(SSL_CTX* ssl_ctx, const char* x509certificate, 
 
                 if (result == 0)
                 {*/
-printf("\r\n%s\r\n", x509certificate);
-
                     // Load the certificate chain
                     if (load_certificate_chain(ssl_ctx, x509certificate) != 0)
                     {
