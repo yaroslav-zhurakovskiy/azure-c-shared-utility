@@ -250,8 +250,8 @@ if(${use_wolfssl})
 endif()
 if(${use_openssl})
     set(source_c_files ${source_c_files}
-        ./adapters/tlsio_openssl.c
-        ./adapters/x509_openssl.c
+        ./adapters/tlsio_openssl_secure.c
+        ./adapters/x509_openssl_secure.c
     )
 endif()
 if(${use_applessl})
