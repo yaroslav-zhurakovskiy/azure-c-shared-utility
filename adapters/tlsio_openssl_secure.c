@@ -545,7 +545,7 @@ static int openssl_static_locks_install(void)
     if (openssl_locks != NULL)
     {
         LogError("Locks already initialized");
-        result = __FAILURE__;
+        result = MU_FAILURE;
     }
     else
     {
@@ -553,7 +553,7 @@ static int openssl_static_locks_install(void)
         if (openssl_locks == NULL)
         {
             LogError("Failed to allocate locks");
-            result = __FAILURE__;
+            result = MU_FAILURE;
         }
         else
         {
@@ -575,7 +575,7 @@ static int openssl_static_locks_install(void)
                 {
                     Lock_Deinit(openssl_locks[j]);
                 }
-                result = __FAILURE__;
+                result = MU_FAILURE;
             }
             else
             {
@@ -628,21 +628,21 @@ static int write_outgoing_bytes(TLS_IO_INSTANCE* tls_io_instance, ON_SEND_COMPLE
         if (bytes_to_send == NULL)
         {
             LogError("NULL bytes_to_send.");
-            result = __FAILURE__;
+            result = MU_FAILURE;
         }
         else
         {
             if (BIO_read(tls_io_instance->out_bio, bytes_to_send, (int)pending) != (int)pending)
             {
                 log_ERR_get_error("BIO_read not in pending state.");
-                result = __FAILURE__;
+                result = MU_FAILURE;
             }
             else
             {
                 if (xio_send(tls_io_instance->underlying_io, bytes_to_send, pending, on_send_complete, callback_context) != 0)
                 {
                     LogError("Error in xio_send.");
-                    result = __FAILURE__;
+                    result = MU_FAILURE;
                 }
                 else
                 {
@@ -798,7 +798,7 @@ static int decode_ssl_received_bytes(TLS_IO_INSTANCE* tls_io_instance)
         if (tls_io_instance->ssl == NULL)
         {
             LogError("SSL channel closed in decode_ssl_received_bytes.");
-            result = __FAILURE__;
+            result = MU_FAILURE;
             return result;
         }
 
@@ -863,7 +863,7 @@ static int add_certificate_to_store(TLS_IO_INSTANCE* tls_io_instance, const char
         if (cert_store == NULL)
         {
             log_ERR_get_error("failure in SSL_CTX_get_cert_store.");
-            result = __FAILURE__;
+            result = MU_FAILURE;
         }
         else
         {
@@ -876,7 +876,7 @@ static int add_certificate_to_store(TLS_IO_INSTANCE* tls_io_instance, const char
             if (bio_method == NULL)
             {
                 log_ERR_get_error("failure in BIO_s_mem");
-                result = __FAILURE__;
+                result = MU_FAILURE;
             }
             else
             {
@@ -885,7 +885,7 @@ static int add_certificate_to_store(TLS_IO_INSTANCE* tls_io_instance, const char
                 if (cert_memory_bio == NULL)
                 {
                     log_ERR_get_error("failure in BIO_new");
-                    result = __FAILURE__;
+                    result = MU_FAILURE;
                 }
                 else
                 {
@@ -893,14 +893,14 @@ static int add_certificate_to_store(TLS_IO_INSTANCE* tls_io_instance, const char
                     if (puts_result < 0)
                     {
                         log_ERR_get_error("failure in BIO_puts");
-                        result = __FAILURE__;
+                        result = MU_FAILURE;
                     }
                     else
                     {
                         if ((size_t)puts_result != strlen(certValue))
                         {
                             log_ERR_get_error("mismatching legths");
-                            result = __FAILURE__;
+                            result = MU_FAILURE;
                         }
                         else
                         {
@@ -922,7 +922,7 @@ static int add_certificate_to_store(TLS_IO_INSTANCE* tls_io_instance, const char
                             else
                             {
                                 /*previous while loop terminated unfortunately*/
-                                result = __FAILURE__;
+                                result = MU_FAILURE;
                             }
                         }
                     }
@@ -963,7 +963,7 @@ static int create_openssl_instance(TLS_IO_INSTANCE* tlsInstance)
     if (tlsInstance->ssl_context == NULL)
     {
         log_ERR_get_error("Failed allocating OpenSSL context.");
-        result = __FAILURE__;
+        result = MU_FAILURE;
     }
     else if ((tlsInstance->cipher_list != NULL) &&
              (SSL_CTX_set_cipher_list(tlsInstance->ssl_context, tlsInstance->cipher_list)) != 1)
@@ -971,14 +971,14 @@ static int create_openssl_instance(TLS_IO_INSTANCE* tlsInstance)
         SSL_CTX_free(tlsInstance->ssl_context);
         tlsInstance->ssl_context = NULL;
         log_ERR_get_error("unable to set cipher list.");
-        result = __FAILURE__;
+        result = MU_FAILURE;
     }
     else if (add_certificate_to_store(tlsInstance, tlsInstance->certificate) != 0)
     {
         SSL_CTX_free(tlsInstance->ssl_context);
         tlsInstance->ssl_context = NULL;
         log_ERR_get_error("unable to add_certificate_to_store.");
-        result = __FAILURE__;
+        result = MU_FAILURE;
     }
     /*x509 authentication can only be build before underlying connection is realized*/
     else if (
@@ -990,7 +990,7 @@ static int create_openssl_instance(TLS_IO_INSTANCE* tlsInstance)
         SSL_CTX_free(tlsInstance->ssl_context);
         tlsInstance->ssl_context = NULL;
         log_ERR_get_error("unable to use x509 authentication");
-        result = __FAILURE__;
+        result = MU_FAILURE;
     }
     else
     {
@@ -1002,7 +1002,7 @@ static int create_openssl_instance(TLS_IO_INSTANCE* tlsInstance)
             SSL_CTX_free(tlsInstance->ssl_context);
             tlsInstance->ssl_context = NULL;
             log_ERR_get_error("Failed BIO_new for in BIO.");
-            result = __FAILURE__;
+            result = MU_FAILURE;
         }
         else
         {
@@ -1013,7 +1013,7 @@ static int create_openssl_instance(TLS_IO_INSTANCE* tlsInstance)
                 SSL_CTX_free(tlsInstance->ssl_context);
                 tlsInstance->ssl_context = NULL;
                 log_ERR_get_error("Failed BIO_new for out BIO.");
-                result = __FAILURE__;
+                result = MU_FAILURE;
             }
             else
             {
@@ -1025,7 +1025,7 @@ static int create_openssl_instance(TLS_IO_INSTANCE* tlsInstance)
                     SSL_CTX_free(tlsInstance->ssl_context);
                     tlsInstance->ssl_context = NULL;
                     LogError("Failed BIO_set_mem_eof_return.");
-                    result = __FAILURE__;
+                    result = MU_FAILURE;
                 }
                 else
                 {
@@ -1046,7 +1046,7 @@ static int create_openssl_instance(TLS_IO_INSTANCE* tlsInstance)
                         SSL_CTX_free(tlsInstance->ssl_context);
                         tlsInstance->ssl_context = NULL;
                         log_ERR_get_error("Failed creating OpenSSL instance.");
-                        result = __FAILURE__;
+                        result = MU_FAILURE;
                     }
                     else
                     {
@@ -1065,42 +1065,31 @@ int tlsio_openssl_init(void)
 {
     int result;
 
-    //(void)SSL_library_init();
-
-    //SSL_load_error_strings();
-    //ERR_load_BIO_strings();
-    //OpenSSL_add_all_algorithms();
-    //ENGINE_load_builtin_engines();
-
-    (void)printf("Opening the Openssl engine\r\n");
     ENGINE_load_dynamic();
-    (void)printf("Call to ENGINE_load_dynamic complete\r\n");
     ENGINE* e = ENGINE_by_id("zymkey_ssl");
-    (void)printf("Call to ENGINE_by_id complete\r\n");
     if (e == NULL)
     {
         LogError("Failed to load zymkey_ssl engine!");
-        result = __FAILURE__;
+        result = MU_FAILURE;
     }
     else
     {
-        (void)printf("Initiazing engine\r\n");
+        // Initiazing engine
         if (ENGINE_init(e) != 1)
         {
             LogError("Failed zymkey_ssl engine init!");
-            result = __FAILURE__;
+            result = MU_FAILURE;
         }
         else
         {
-            printf("Zymkey engine is initialized\r\n");
+            // Zymkey engine is initialized
             if (openssl_static_locks_install() != 0)
             {
                 LogError("Failed to install static locks in OpenSSL!");
-                result = __FAILURE__;
+                result = MU_FAILURE;
             }
             else
             {
-                printf("Done with locks\r\n");
                 ENGINE_set_default(e, ENGINE_METHOD_EC);
                 openssl_dynamic_locks_install();
                 result = 0;
@@ -1255,7 +1244,7 @@ int tlsio_openssl_open(CONCRETE_IO_HANDLE tls_io, ON_IO_OPEN_COMPLETE on_io_open
 
     if (tls_io == NULL)
     {
-        result = __FAILURE__;
+        result = MU_FAILURE;
         LogError("NULL tls_io.");
     }
     else
@@ -1265,7 +1254,7 @@ int tlsio_openssl_open(CONCRETE_IO_HANDLE tls_io, ON_IO_OPEN_COMPLETE on_io_open
         if (tls_io_instance->tlsio_state != TLSIO_STATE_NOT_OPEN)
         {
             LogError("Invalid tlsio_state. Expected state is TLSIO_STATE_NOT_OPEN.");
-            result = __FAILURE__;
+            result = MU_FAILURE;
         }
         else
         {
@@ -1284,7 +1273,7 @@ int tlsio_openssl_open(CONCRETE_IO_HANDLE tls_io, ON_IO_OPEN_COMPLETE on_io_open
             {
                 LogError("Failed creating the OpenSSL instance.");
                 tls_io_instance->tlsio_state = TLSIO_STATE_NOT_OPEN;
-                result = __FAILURE__;
+                result = MU_FAILURE;
             }
             else if (xio_open(tls_io_instance->underlying_io, on_underlying_io_open_complete, tls_io_instance,
                 on_underlying_io_bytes_received, tls_io_instance, on_underlying_io_error, tls_io_instance) != 0)
@@ -1292,7 +1281,7 @@ int tlsio_openssl_open(CONCRETE_IO_HANDLE tls_io, ON_IO_OPEN_COMPLETE on_io_open
                 LogError("Failed opening the underlying I/O.");
                 close_openssl_instance(tls_io_instance);
                 tls_io_instance->tlsio_state = TLSIO_STATE_NOT_OPEN;
-                result = __FAILURE__;
+                result = MU_FAILURE;
             }
             else
             {
@@ -1315,7 +1304,7 @@ int tlsio_openssl_close(CONCRETE_IO_HANDLE tls_io, ON_IO_CLOSE_COMPLETE on_io_cl
     if (tls_io == NULL)
     {
         LogError("NULL tls_io.");
-        result = __FAILURE__;
+        result = MU_FAILURE;
     }
     else
     {
@@ -1374,7 +1363,7 @@ int tlsio_openssl_send(CONCRETE_IO_HANDLE tls_io, const void* buffer, size_t siz
     if (tls_io == NULL)
     {
         LogError("NULL tls_io.");
-        result = __FAILURE__;
+        result = MU_FAILURE;
     }
     else
     {
@@ -1383,7 +1372,7 @@ int tlsio_openssl_send(CONCRETE_IO_HANDLE tls_io, const void* buffer, size_t siz
         if (tls_io_instance->tlsio_state != TLSIO_STATE_OPEN)
         {
             LogError("Invalid tlsio_state. Expected state is TLSIO_STATE_OPEN.");
-            result = __FAILURE__;
+            result = MU_FAILURE;
         }
         else
         {
@@ -1391,7 +1380,7 @@ int tlsio_openssl_send(CONCRETE_IO_HANDLE tls_io, const void* buffer, size_t siz
             if (tls_io_instance->ssl == NULL)
             {
                 LogError("SSL channel closed in tlsio_openssl_send.");
-                result = __FAILURE__;
+                result = MU_FAILURE;
                 return result;
             }
 
@@ -1399,14 +1388,14 @@ int tlsio_openssl_send(CONCRETE_IO_HANDLE tls_io, const void* buffer, size_t siz
             if (res != (int)size)
             {
                 log_ERR_get_error("SSL_write error.");
-                result = __FAILURE__;
+                result = MU_FAILURE;
             }
             else
             {
                 if (write_outgoing_bytes(tls_io_instance, on_send_complete, callback_context) != 0)
                 {
                     LogError("Error in write_outgoing_bytes.");
-                    result = __FAILURE__;
+                    result = MU_FAILURE;
                 }
                 else
                 {
@@ -1475,7 +1464,7 @@ int tlsio_openssl_setoption(CONCRETE_IO_HANDLE tls_io, const char* optionName, c
 
     if (tls_io == NULL || optionName == NULL)
     {
-        result = __FAILURE__;
+        result = MU_FAILURE;
     }
     else
     {
@@ -1497,7 +1486,7 @@ int tlsio_openssl_setoption(CONCRETE_IO_HANDLE tls_io, const char* optionName, c
             tls_io_instance->certificate = malloc(len + 1);
             if (tls_io_instance->certificate == NULL)
             {
-                result = __FAILURE__;
+                result = MU_FAILURE;
             }
             else
             {
@@ -1524,7 +1513,7 @@ int tlsio_openssl_setoption(CONCRETE_IO_HANDLE tls_io, const char* optionName, c
             if (mallocAndStrcpy_s((char**)&tls_io_instance->cipher_list, value) != 0)
             {
                 LogError("unable to mallocAndStrcpy_s %s", optionName);
-                result = __FAILURE__;
+                result = MU_FAILURE;
             }
             else
             {
@@ -1536,7 +1525,7 @@ int tlsio_openssl_setoption(CONCRETE_IO_HANDLE tls_io, const char* optionName, c
             if (tls_io_instance->x509_certificate != NULL)
             {
                 LogError("unable to set x509 options more than once");
-                result = __FAILURE__;
+                result = MU_FAILURE;
             }
             else
             {
@@ -1544,7 +1533,7 @@ int tlsio_openssl_setoption(CONCRETE_IO_HANDLE tls_io, const char* optionName, c
                 if (mallocAndStrcpy_s((char**)&tls_io_instance->x509_certificate, value) != 0)
                 {
                     LogError("unable to mallocAndStrcpy_s %s", optionName);
-                    result = __FAILURE__;
+                    result = MU_FAILURE;
                 }
                 else
                 {
@@ -1557,7 +1546,7 @@ int tlsio_openssl_setoption(CONCRETE_IO_HANDLE tls_io, const char* optionName, c
             if (tls_io_instance->x509_private_key != NULL)
             {
                 LogError("unable to set more than once x509 options");
-                result = __FAILURE__;
+                result = MU_FAILURE;
             }
             else
             {
@@ -1565,7 +1554,7 @@ int tlsio_openssl_setoption(CONCRETE_IO_HANDLE tls_io, const char* optionName, c
                 if (mallocAndStrcpy_s((char**)&tls_io_instance->x509_private_key, value) != 0)
                 {
                     LogError("unable to mallocAndStrcpy_s %s", optionName);
-                    result = __FAILURE__;
+                    result = MU_FAILURE;
                 }
                 else
                 {
@@ -1607,7 +1596,7 @@ int tlsio_openssl_setoption(CONCRETE_IO_HANDLE tls_io, const char* optionName, c
             if (tls_io_instance->ssl_context != NULL)
             {
                 LogError("Unable to set the tls version after the tls connection is established");
-                result = __FAILURE__;
+                result = MU_FAILURE;
             }
             else
             {
@@ -1637,7 +1626,7 @@ int tlsio_openssl_setoption(CONCRETE_IO_HANDLE tls_io, const char* optionName, c
             if (OptionHandler_FeedOptions((OPTIONHANDLER_HANDLE)value, (void*)tls_io_instance->underlying_io) != OPTIONHANDLER_OK)
             {
                 LogError("failed feeding options to underlying I/O instance");
-                result = __FAILURE__;
+                result = MU_FAILURE;
             }
             else
             {
@@ -1652,7 +1641,7 @@ int tlsio_openssl_setoption(CONCRETE_IO_HANDLE tls_io, const char* optionName, c
         {
             if (tls_io_instance->underlying_io == NULL)
             {
-                result = __FAILURE__;
+                result = MU_FAILURE;
             }
             else
             {
