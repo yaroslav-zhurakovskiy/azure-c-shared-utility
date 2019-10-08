@@ -3,7 +3,7 @@
 
 function(install)
     if(${use_installed_dependencies})
-        _install(${ARGN})
+        _install(${ARGV})
     endif()
 endfunction()
 
