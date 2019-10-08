@@ -1,6 +1,12 @@
 #Copyright (c) Microsoft. All rights reserved.
 #Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+function(install)
+    if(${use_installed_dependencies})
+        _install(${ARGN})
+    endif()
+endfunction()
+
 function(target_link_libraries_with_arg_prefix arg_prefix whatIsBuilding lib)
     if(${arg_prefix} STREQUAL "debug")
         target_link_libraries(${whatIsBuilding} debug ${lib})
