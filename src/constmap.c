@@ -19,7 +19,7 @@ typedef struct CONSTMAP_HANDLE_DATA_TAG
 
 DEFINE_REFCOUNT_TYPE(CONSTMAP_HANDLE_DATA);
 
-#define LOG_CONSTMAP_ERROR(result) LogError("result = %" PRI_MU_ENUM "", MU_ENUM_VALUE(CONSTMAP_RESULT, (result)));
+// #define LOG_CONSTMAP_ERROR(result) LogError("result = %" PRI_MU_ENUM "", MU_ENUM_VALUE(CONSTMAP_RESULT, (result)));
 
 CONSTMAP_HANDLE ConstMap_Create(MAP_HANDLE sourceMap)
 {
@@ -27,7 +27,7 @@ CONSTMAP_HANDLE ConstMap_Create(MAP_HANDLE sourceMap)
 
     if (result == NULL)
     {
-        LOG_CONSTMAP_ERROR(CONSTMAP_INVALIDARG);
+        // LOG_CONSTMAP_ERROR(CONSTMAP_INVALIDARG);
     }
     else
     {
@@ -36,7 +36,7 @@ CONSTMAP_HANDLE ConstMap_Create(MAP_HANDLE sourceMap)
         result->map = Map_Clone(sourceMap);
         if (result->map == NULL)
         {
-            LOG_CONSTMAP_ERROR(CONSTMAP_ERROR);
+            // LOG_CONSTMAP_ERROR(CONSTMAP_ERROR);
             REFCOUNT_TYPE_DESTROY(CONSTMAP_HANDLE_DATA, result);
             /*Codes_SRS_CONSTMAP_17_002: [If during creation there are any errors, then ConstMap_Create shall return NULL.]*/
             result = NULL;
@@ -51,7 +51,7 @@ void ConstMap_Destroy(CONSTMAP_HANDLE handle)
     /*Codes_SRS_CONSTMAP_17_005: [If parameter handle is NULL then ConstMap_Destroy shall take no action.]*/
     if (handle == NULL)
     {
-        LOG_CONSTMAP_ERROR(CONSTMAP_INVALIDARG);
+        // LOG_CONSTMAP_ERROR(CONSTMAP_INVALIDARG);
     }
     else
     {
@@ -71,7 +71,7 @@ CONSTMAP_HANDLE ConstMap_Clone(CONSTMAP_HANDLE handle)
     /*Codes_SRS_CONSTMAP_17_038: [ConstMap_Clone returns NULL if parameter handle is NULL.] */
     if (handle == NULL)
     {
-        LOG_CONSTMAP_ERROR(CONSTMAP_INVALIDARG);
+        // LOG_CONSTMAP_ERROR(CONSTMAP_INVALIDARG);
     }
     else
     {
@@ -109,7 +109,7 @@ MAP_HANDLE ConstMap_CloneWriteable(CONSTMAP_HANDLE handle)
     if (handle == NULL)
     {
         /*Codes_SRS_CONSTMAP_17_051: [ConstMap_CloneWriteable returns NULL if parameter handle is NULL. ]*/
-        LOG_CONSTMAP_ERROR(CONSTMAP_INVALIDARG);
+        // LOG_CONSTMAP_ERROR(CONSTMAP_INVALIDARG);
     }
     else
     {
@@ -127,13 +127,13 @@ bool ConstMap_ContainsKey(CONSTMAP_HANDLE handle, const char* key )
     if (handle == NULL)
     {
         /*Codes_SRS_CONSTMAP_17_024: [If parameter handle or key are NULL then ConstMap_ContainsKey shall return false.]*/
-        LOG_CONSTMAP_ERROR(CONSTMAP_INVALIDARG);
+        // LOG_CONSTMAP_ERROR(CONSTMAP_INVALIDARG);
     }
     else
     {
         if (key == NULL)
         {
-            LOG_CONSTMAP_ERROR(CONSTMAP_INVALIDARG);
+            // LOG_CONSTMAP_ERROR(CONSTMAP_INVALIDARG);
         }
         else
         {
@@ -143,7 +143,7 @@ bool ConstMap_ContainsKey(CONSTMAP_HANDLE handle, const char* key )
             {
                 /*Codes_SRS_CONSTMAP_17_026: [If a key doesn't exist, then ConstMap_ContainsKey shall return false.]*/
                 keyExists = false;
-                LOG_CONSTMAP_ERROR(ConstMap_ErrorConvert(mapResult));
+                // LOG_CONSTMAP_ERROR(ConstMap_ErrorConvert(mapResult));
             }
         }
     }
@@ -156,13 +156,13 @@ bool ConstMap_ContainsValue(CONSTMAP_HANDLE handle, const char* value)
     if (handle == NULL)
     {
         /*Codes_SRS_CONSTMAP_17_027: [If parameter handle or value is NULL then ConstMap_ContainsValue shall return false.]*/
-        LOG_CONSTMAP_ERROR(CONSTMAP_INVALIDARG);
+        // LOG_CONSTMAP_ERROR(CONSTMAP_INVALIDARG);
     }
     else
     {
         if (value == NULL)
         {
-            LOG_CONSTMAP_ERROR(CONSTMAP_INVALIDARG);
+            // LOG_CONSTMAP_ERROR(CONSTMAP_INVALIDARG);
         }
         else
         {
@@ -171,7 +171,7 @@ bool ConstMap_ContainsValue(CONSTMAP_HANDLE handle, const char* value)
             if (mapResult != MAP_OK)
             {
                 /*Codes_SRS_CONSTMAP_17_029: [Otherwise, if such a does not exist, then ConstMap_ContainsValue shall return false.]*/
-                LOG_CONSTMAP_ERROR(ConstMap_ErrorConvert(mapResult));
+                // LOG_CONSTMAP_ERROR(ConstMap_ErrorConvert(mapResult));
             }
         }
     }
@@ -185,14 +185,14 @@ const char* ConstMap_GetValue(CONSTMAP_HANDLE handle, const char* key)
     if (handle == NULL)
     {
         /*Codes_SRS_CONSTMAP_17_040: [If parameter handle or key is NULL then ConstMap_GetValue returns NULL.]*/
-        LOG_CONSTMAP_ERROR(CONSTMAP_INVALIDARG);
+        // LOG_CONSTMAP_ERROR(CONSTMAP_INVALIDARG);
     }
     else
     {
         if (key == NULL)
         {
             /*Codes_SRS_CONSTMAP_17_040: [If parameter handle or key is NULL then ConstMap_GetValue returns NULL.]*/
-            LOG_CONSTMAP_ERROR(CONSTMAP_INVALIDARG);
+            // LOG_CONSTMAP_ERROR(CONSTMAP_INVALIDARG);
         }
         else
         {
@@ -211,7 +211,7 @@ CONSTMAP_RESULT ConstMap_GetInternals(CONSTMAP_HANDLE handle, const char*const**
     {
         /*Codes_SRS_CONSTMAP_17_046: [If parameter handle, keys, values or count is NULL then ConstMap_GetInternals shall return CONSTMAP_INVALIDARG.]*/
         result = CONSTMAP_INVALIDARG;
-        LOG_CONSTMAP_ERROR(result);
+        // LOG_CONSTMAP_ERROR(result);
     }
     else
     {

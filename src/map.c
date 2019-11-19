@@ -19,7 +19,7 @@ typedef struct MAP_HANDLE_DATA_TAG
     MAP_FILTER_CALLBACK mapFilterCallback;
 }MAP_HANDLE_DATA;
 
-#define LOG_MAP_ERROR LogError("result = %" PRI_MU_ENUM "", MU_ENUM_VALUE(MAP_RESULT, result));
+// #define LOG_MAP_ERROR LogError("result = %" PRI_MU_ENUM "", MU_ENUM_VALUE(MAP_RESULT, result));
 
 MAP_HANDLE Map_Create(MAP_FILTER_CALLBACK mapFilterFunc)
 {
@@ -338,7 +338,7 @@ MAP_RESULT Map_Add(MAP_HANDLE handle, const char* key, const char* value)
         )
     {
         result = MAP_INVALIDARG;
-        LOG_MAP_ERROR;
+        // LOG_MAP_ERROR;
     }
     else
     {
@@ -362,7 +362,7 @@ MAP_RESULT Map_Add(MAP_HANDLE handle, const char* key, const char* value)
                 {
                     /*Codes_SRS_MAP_02_011: [If adding the pair <key,value> fails then Map_Add shall return MAP_ERROR.] */
                     result = MAP_ERROR;
-                    LOG_MAP_ERROR;
+                    // LOG_MAP_ERROR;
                 }
                 else
                 {
@@ -388,7 +388,7 @@ MAP_RESULT Map_AddOrUpdate(MAP_HANDLE handle, const char* key, const char* value
         )
     {
         result = MAP_INVALIDARG;
-        LOG_MAP_ERROR;
+        // LOG_MAP_ERROR;
     }
     else
     {
@@ -408,7 +408,7 @@ MAP_RESULT Map_AddOrUpdate(MAP_HANDLE handle, const char* key, const char* value
                 if (insertNewKeyValue(handleData, key, value) != 0)
                 {
                     result = MAP_ERROR;
-                    LOG_MAP_ERROR;
+                    // LOG_MAP_ERROR;
                 }
                 else
                 {
@@ -425,7 +425,7 @@ MAP_RESULT Map_AddOrUpdate(MAP_HANDLE handle, const char* key, const char* value
                 if (newValue == NULL)
                 {
                     result = MAP_ERROR;
-                    LOG_MAP_ERROR;
+                    // LOG_MAP_ERROR;
                 }
                 else
                 {
@@ -451,7 +451,7 @@ MAP_RESULT Map_Delete(MAP_HANDLE handle, const char* key)
         )
     {
         result = MAP_INVALIDARG;
-        LOG_MAP_ERROR;
+        // LOG_MAP_ERROR;
     }
     else
     {
@@ -489,7 +489,7 @@ MAP_RESULT Map_ContainsKey(MAP_HANDLE handle, const char* key, bool* keyExists)
         )
     {
         result = MAP_INVALIDARG;
-        LOG_MAP_ERROR;
+        // LOG_MAP_ERROR;
     }
     else
     {
@@ -513,7 +513,7 @@ MAP_RESULT Map_ContainsValue(MAP_HANDLE handle, const char* value, bool* valueEx
         )
     {
         result = MAP_INVALIDARG;
-        LOG_MAP_ERROR;
+        // LOG_MAP_ERROR;
     }
     else
     {
@@ -569,7 +569,7 @@ MAP_RESULT Map_GetInternals(MAP_HANDLE handle, const char*const** keys, const ch
         )
     {
         result = MAP_INVALIDARG;
-        LOG_MAP_ERROR;
+        // LOG_MAP_ERROR;
     }
     else
     {

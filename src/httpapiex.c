@@ -28,7 +28,7 @@ typedef struct HTTPAPIEX_HANDLE_DATA_TAG
 
 MU_DEFINE_ENUM_STRINGS(HTTPAPIEX_RESULT, HTTPAPIEX_RESULT_VALUES);
 
-#define LOG_HTTAPIEX_ERROR() LogError("error code = %" PRI_MU_ENUM "", MU_ENUM_VALUE(HTTPAPIEX_RESULT, result))
+// #define LOG_HTTAPIEX_ERROR() LogError("error code = %" PRI_MU_ENUM "", MU_ENUM_VALUE(HTTPAPIEX_RESULT, result))
 
 static int useGlobalInitialization = 0;
 
@@ -345,7 +345,7 @@ HTTPAPIEX_RESULT HTTPAPIEX_ExecuteRequest(HTTPAPIEX_HANDLE handle, HTTPAPI_REQUE
     if (handle == NULL)
     {
         result = HTTPAPIEX_INVALID_ARG;
-        LOG_HTTAPIEX_ERROR();
+        // LOG_HTTAPIEX_ERROR();
     }
     else
     {
@@ -353,7 +353,7 @@ HTTPAPIEX_RESULT HTTPAPIEX_ExecuteRequest(HTTPAPIEX_HANDLE handle, HTTPAPI_REQUE
         if (requestType >= MU_COUNT_ARG(HTTPAPI_REQUEST_TYPE_VALUES))
         {
             result = HTTPAPIEX_INVALID_ARG;
-            LOG_HTTAPIEX_ERROR();
+            // LOG_HTTAPIEX_ERROR();
         }
         else
         {
@@ -376,7 +376,7 @@ HTTPAPIEX_RESULT HTTPAPIEX_ExecuteRequest(HTTPAPIEX_HANDLE handle, HTTPAPI_REQUE
                 &toBeUsedResponseContent, &isOriginalResponseContent) != 0)
             {
                 result = HTTPAPIEX_ERROR;
-                LOG_HTTAPIEX_ERROR();
+                // LOG_HTTAPIEX_ERROR();
             }
             else
             {
@@ -647,7 +647,7 @@ HTTPAPIEX_RESULT HTTPAPIEX_SetOption(HTTPAPIEX_HANDLE handle, const char* option
         )
     {
         result = HTTPAPIEX_INVALID_ARG;
-        LOG_HTTAPIEX_ERROR();
+        // LOG_HTTAPIEX_ERROR();
     }
     else
     {
@@ -661,13 +661,13 @@ HTTPAPIEX_RESULT HTTPAPIEX_SetOption(HTTPAPIEX_HANDLE handle, const char* option
         {
             /*Codes_SRS_HTTPAPIEX_02_038: [If HTTPAPI_CloneOption returns HTTPAPI_INVALID_ARG then HTTPAPIEX shall return HTTPAPIEX_INVALID_ARG.] */
             result = HTTPAPIEX_INVALID_ARG;
-            LOG_HTTAPIEX_ERROR();
+            // LOG_HTTAPIEX_ERROR();
         }
         else if (saveOptionResult != HTTPAPI_OK)
         {
             /*Codes_SRS_HTTPAPIEX_02_040: [For all other return values of HTTPAPI_SetOption, HTTPIAPIEX_SetOption shall return HTTPAPIEX_ERROR.] */
             result = HTTPAPIEX_ERROR;
-            LOG_HTTAPIEX_ERROR();
+            // LOG_HTTAPIEX_ERROR();
         }
         else
         {
@@ -677,7 +677,7 @@ HTTPAPIEX_RESULT HTTPAPIEX_SetOption(HTTPAPIEX_HANDLE handle, const char* option
             {
                 /*Codes_SRS_HTTPAPIEX_02_041: [If creating or updating the pair optionName/value fails then shall return HTTPAPIEX_ERROR.] */
                 result = HTTPAPIEX_ERROR;
-                LOG_HTTAPIEX_ERROR();
+                // LOG_HTTAPIEX_ERROR();
 
             }
             else
@@ -693,12 +693,12 @@ HTTPAPIEX_RESULT HTTPAPIEX_SetOption(HTTPAPIEX_HANDLE handle, const char* option
                     else if (HTTPAPI_result == HTTPAPI_INVALID_ARG)
                     {
                         result = HTTPAPIEX_INVALID_ARG;
-                        LOG_HTTAPIEX_ERROR();
+                        // LOG_HTTAPIEX_ERROR();
                     }
                     else
                     {
                         result = HTTPAPIEX_ERROR;
-                        LOG_HTTAPIEX_ERROR();
+                        // LOG_HTTAPIEX_ERROR();
                     }
                 }
                 else
